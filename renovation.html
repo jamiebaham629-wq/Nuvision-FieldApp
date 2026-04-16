@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Renovation Management — NuVision</title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        if (!(localStorage.getItem('nuvisionAccessCode') || '')) {
+            window.location.replace('index.html');
+        }
+    </script>
 </head>
 <body>
     <header class="app-header">
@@ -167,8 +172,27 @@
     </div>
 
     <script>
-        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwwAg0ymav4ll5h5h5O6DtghVeRjcGoAwyXzJoV-WNJnAucm4QFEPCC5n5Cyn8G7o2W/exec';
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwTTATWLpWkmWkqwP-CNDQG1RgpT4OFx-gsa4HPqJt_UO81_1aghW6dYFqJAVjf0qwC/exec';
+        const AUTH_STORAGE_KEY = 'nuvisionAccessCode';
         const milestoneTemplates = {};
+        function getAuthKey() {
+            return localStorage.getItem(AUTH_STORAGE_KEY) || '';
+        }
+
+        function buildWebAppUrl() {
+            const authKey = getAuthKey();
+            if (!authKey) {
+                window.location.replace('index.html');
+                return WEB_APP_URL;
+            }
+            const separator = WEB_APP_URL.includes('?') ? '&' : '?';
+            return `${WEB_APP_URL}${separator}authKey=${encodeURIComponent(authKey)}`;
+        }
+
+        function redirectToLogin() {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            window.location.replace('index.html');
+        }
         let templateDataAvailable = false;
         let projects = [];
         let masterClients = [];
@@ -182,24 +206,45 @@
         }
 
         async function fetchWebAppData() {
-            const response = await fetch(WEB_APP_URL);
+            const response = await fetch(buildWebAppUrl());
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    redirectToLogin();
+                    throw new Error('Unauthorized');
+                }
                 throw new Error(`HTTP ${response.status}`);
             }
-            return await response.json();
+
+            const text = await response.text();
+            if (/unauthorized|forbidden/i.test(text)) {
+                redirectToLogin();
+                throw new Error('Unauthorized');
+            }
+
+            return JSON.parse(text);
         }
 
         async function postToWebApp(payload) {
             const response = await fetch(WEB_APP_URL, {
                 method: 'POST',
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ ...payload, authKey: getAuthKey() })
             });
 
             if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    redirectToLogin();
+                    throw new Error('Unauthorized');
+                }
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            return await response.text();
+            const text = await response.text();
+            if (/unauthorized|forbidden/i.test(text)) {
+                redirectToLogin();
+                throw new Error('Unauthorized');
+            }
+
+            return text;
         }
 
         function updateMilestoneOptions() {

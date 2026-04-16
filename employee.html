@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Tracker - NuVision</title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        if (!(localStorage.getItem('nuvisionAccessCode') || '')) {
+            window.location.replace('index.html');
+        }
+    </script>
     <style>
         * {
             margin: 0;
@@ -309,9 +314,28 @@
     </nav>
 
     <script>
-        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwwAg0ymav4ll5h5h5O6DtghVeRjcGoAwyXzJoV-WNJnAucm4QFEPCC5n5Cyn8G7o2W/exec";
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwTTATWLpWkmWkqwP-CNDQG1RgpT4OFx-gsa4HPqJt_UO81_1aghW6dYFqJAVjf0qwC/exec";
+        const AUTH_STORAGE_KEY = "nuvisionAccessCode";
 
         let employees = [];
+        function getAuthKey() {
+            return localStorage.getItem(AUTH_STORAGE_KEY) || "";
+        }
+
+        function buildWebAppUrl() {
+            const authKey = getAuthKey();
+            if (!authKey) {
+                window.location.replace('index.html');
+                return WEB_APP_URL;
+            }
+            const separator = WEB_APP_URL.includes('?') ? '&' : '?';
+            return `${WEB_APP_URL}${separator}authKey=${encodeURIComponent(authKey)}`;
+        }
+
+        function redirectToLogin() {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            window.location.replace('index.html');
+        }
         let selectedEmployee = null;
 
         // Fetch employees from Google Sheet
@@ -320,7 +344,15 @@
             listContainer.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">Loading employees...</p>';
 
             try {
-                const response = await fetch(WEB_APP_URL);
+                const response = await fetch(buildWebAppUrl());
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        redirectToLogin();
+                        throw new Error('Unauthorized');
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
                 const data = await response.json();
 
                 console.log("Fetched data:", data);
@@ -439,6 +471,7 @@
                     method: 'POST',
                     body: JSON.stringify({
                         action: 'addEmployee',
+                        authKey: getAuthKey(),
                         employeeName,
                         hourlyRate,
                         Name: employeeName,
@@ -507,6 +540,7 @@
                     method: 'POST',
                     body: JSON.stringify({
                         action: 'addEmployeeHours',
+                        authKey: getAuthKey(),
                         employeeId: selectedEmployee.id,
                         employeeName: selectedEmployee.name,
                         date: date,

@@ -1,10 +1,64 @@
 // --- CONFIGURATION ---
 const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwTTATWLpWkmWkqwP-CNDQG1RgpT4OFx-gsa4HPqJt_UO81_1aghW6dYFqJAVjf0qwC/exec";
+const AUTH_STORAGE_KEY = "nuvisionAccessCode";
 
 let clients = [];
 let masterClients = [];
 let logData = [];
 let scheduleData = [];
+
+function getAuthKey() {
+    return localStorage.getItem(AUTH_STORAGE_KEY) || "";
+}
+
+function saveAuthKey(value) {
+    if (!value) return;
+    localStorage.setItem(AUTH_STORAGE_KEY, value);
+}
+
+function clearAuthKey() {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+function buildWebAppUrl() {
+    const authKey = getAuthKey();
+    if (!authKey) return WEB_APP_URL;
+    const separator = WEB_APP_URL.includes("?") ? "&" : "?";
+    return `${WEB_APP_URL}${separator}authKey=${encodeURIComponent(authKey)}`;
+}
+
+function setLogoutButtonVisible(visible) {
+    const button = document.getElementById("logout-btn");
+    if (button) button.style.display = visible ? "inline-flex" : "none";
+}
+
+function showLoginOverlay(message = "") {
+    const overlay = document.getElementById("login-overlay");
+    const messageBox = document.getElementById("login-message");
+    const input = document.getElementById("login-code");
+
+    if (messageBox) messageBox.textContent = message;
+    if (overlay) overlay.style.display = "flex";
+    setLogoutButtonVisible(false);
+    if (input && !input.value) input.focus();
+}
+
+function hideLoginOverlay() {
+    const overlay = document.getElementById("login-overlay");
+    if (overlay) overlay.style.display = "none";
+    setLogoutButtonVisible(true);
+}
+
+function logoutApp(message = "Signed out.") {
+    clearAuthKey();
+    showLoginOverlay(message);
+}
+
+function isUnauthorizedMessage(message = "") {
+    return /unauthorized|forbidden|access code|login required/i.test(String(message || ""));
+}
+
+window.logoutApp = logoutApp;
 
 function getLocalDateString(value = new Date()) {
     const date = value instanceof Date ? value : new Date(value);
@@ -196,14 +250,31 @@ function openClientEditorModal() {
 
 // --- 2. DATA FETCHING ---
 async function fetchSheetData() {
+    const authKey = getAuthKey();
     const listContainer = document.getElementById("lawn-list");
+
+    if (!authKey) {
+        showLoginOverlay("Enter your access code to open the app.");
+        return false;
+    }
+
     if (listContainer) {
         listContainer.innerHTML = '<p style="padding: 20px;">Connecting to NuVision Database...</p>';
     }
 
     try {
-        const response = await fetch(WEB_APP_URL);
-        const data = await response.json();
+        const response = await fetch(buildWebAppUrl());
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await readWebAppResponse(response);
+        if (typeof data === "string" && isUnauthorizedMessage(data)) {
+            throw new Error(data);
+        }
+        if (data && data.success === false && isUnauthorizedMessage(data.message || "")) {
+            throw new Error(data.message || "Unauthorized");
+        }
 
         const clientRows = data.clients ? data.clients.slice(1) : [];
         const lawnRows = data.lawnCare ? data.lawnCare.slice(1) : [];
@@ -326,15 +397,27 @@ async function fetchSheetData() {
         logData = data.log ? data.log.slice(1) : [];
         scheduleData = data.schedule ? data.schedule.slice(1) : [];
 
+        hideLoginOverlay();
         renderClients();
         displayTodaySchedule();
         const lookupDate = document.getElementById("schedule-lookup-date")?.value || getLocalDateString();
         displayScheduleLookup(lookupDate);
+        return true;
     } catch (error) {
         console.error("Fetch Error:", error);
+
+        if (isUnauthorizedMessage(error.message || "")) {
+            if (listContainer) {
+                listContainer.innerHTML = '<p style="padding:20px; color:#666;">App is locked until a valid access code is entered.</p>';
+            }
+            logoutApp("Access code not recognized. Please try again.");
+            return false;
+        }
+
         if (listContainer) {
             listContainer.innerHTML = '<p style="color:red; padding:20px;">Connection Failed. Check your Web App or internet connection.</p>';
         }
+        return false;
     }
 }
 
@@ -546,17 +629,31 @@ async function readWebAppResponse(response) {
 }
 
 async function postToWebApp(payload) {
+    const authKey = payload?.authKey || getAuthKey();
+    if (!authKey) {
+        showLoginOverlay("Enter your access code to continue.");
+        throw new Error("Unauthorized");
+    }
+
     const response = await fetch(WEB_APP_URL, {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, authKey })
     });
 
     if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            logoutApp("Please sign in again.");
+            throw new Error("Unauthorized");
+        }
         throw new Error(`HTTP ${response.status}`);
     }
 
     const result = await readWebAppResponse(response);
-    if (typeof result === "string" && /(unknown action|error)/i.test(result)) {
+    if ((typeof result === "string" && isUnauthorizedMessage(result)) || (result && result.success === false && isUnauthorizedMessage(result.message || ""))) {
+        logoutApp("Please sign in again.");
+        throw new Error("Unauthorized");
+    }
+    if (typeof result === "string" && /(unknown action|error)/i.test(result) && !/success/i.test(result)) {
         throw new Error(result);
     }
 
@@ -741,6 +838,32 @@ function showCalendarView() {
     if (picker) fetchLogData(picker.value);
 }
 
+async function submitLogin(event) {
+    event.preventDefault();
+
+    const input = document.getElementById("login-code");
+    const code = input?.value.trim() || "";
+    const messageBox = document.getElementById("login-message");
+
+    if (!code) {
+        showLoginOverlay("Enter the shared access code.");
+        return;
+    }
+
+    saveAuthKey(code);
+    if (messageBox) messageBox.textContent = "Checking access...";
+
+    const isAuthorized = await fetchSheetData();
+    if (!isAuthorized) {
+        clearAuthKey();
+        if (input) input.select();
+        return;
+    }
+
+    if (messageBox) messageBox.textContent = "";
+    if (input) input.value = "";
+}
+
 function openScheduleLookupModal() {
     const modal = document.getElementById("schedule-lookup-modal");
     const input = document.getElementById("schedule-lookup-date");
@@ -752,6 +875,9 @@ function openScheduleLookupModal() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    const loginForm = document.getElementById("login-form");
+    if (loginForm) loginForm.addEventListener("submit", submitLogin);
+
     const scheduleForm = document.getElementById("schedule-form");
     if (scheduleForm) scheduleForm.addEventListener("submit", submitSchedule);
 
@@ -791,6 +917,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (addClientBtn) {
         addClientBtn.addEventListener("click", openClientEditorModal);
     }
-});
 
-window.addEventListener("load", fetchSheetData);
+    if (getAuthKey()) {
+        fetchSheetData();
+    } else {
+        showLoginOverlay("Enter your access code to open the app.");
+    }
+});

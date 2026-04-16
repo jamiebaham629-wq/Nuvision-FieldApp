@@ -7,6 +7,18 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="login-overlay" style="position:fixed; inset:0; background:rgba(255,255,255,0.98); z-index:5000; display:none; align-items:center; justify-content:center; padding:20px;">
+        <div style="width:100%; max-width:360px; background:white; border:1px solid #d9e3f0; border-radius:16px; padding:24px; box-shadow:0 10px 30px rgba(0,0,0,0.12); text-align:center;">
+            <img src="nuvisionlogo.PNG" alt="NuVision logo" style="width:78px; height:auto; margin-bottom:12px;">
+            <h2 style="margin:0 0 8px 0; color:#0A66C2;">Private App Access</h2>
+            <p style="margin:0 0 14px 0; color:#666; font-size:14px;">Enter your shared access code to open the app on this phone.</p>
+            <form id="login-form">
+                <input type="password" id="login-code" placeholder="Access Code" style="width:100%; padding:12px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; margin-bottom:10px;">
+                <button type="submit" style="width:100%; padding:12px; background:#0A66C2; color:white; border:none; border-radius:8px; font-weight:700;">Unlock App</button>
+            </form>
+            <p id="login-message" style="margin:12px 0 0 0; min-height:18px; font-size:13px; color:#b00020;"></p>
+        </div>
+    </div>
 
     <header class="app-header">
         <div class="home-logo-wrap">
@@ -14,6 +26,7 @@
         </div>
         <h3 class="app-header-title">NuVision Renovation and Lawn Care</h3>
         <p class="app-header-subtitle">Field App</p>
+        <button id="logout-btn" onclick="logoutApp()" style="display:none; margin-top:8px; background:#f3f6fa; color:#0A66C2; border:1px solid #cfe0f4; border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700;">Sign Out</button>
     </header>
 
     <main>
