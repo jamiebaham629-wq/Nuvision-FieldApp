@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NuVision Field App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="app-header">
+        <div class="home-logo-wrap">
+            <img id="company-logo" src="nuvisionlogo.PNG" alt="NuVision company logo">
+        </div>
+        <h3 class="app-header-title">NuVision Renovation and Lawn Care</h3>
+        <p class="app-header-subtitle">Field App</p>
+    </header>
+
+    <main>
+        <section id="landing" style="display: block; text-align:center; padding: 40px 20px;">
+                     
+            <div id="schedule-today" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; margin-bottom: 16px; overflow: hidden;">
+                <div style="background: #ffc107; color: #333; padding: 12px; font-weight: bold; font-size: 16px; display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+                    <span>📅 Schedule for Today</span>
+                    <span id="today-date" style="font-size: 14px; font-weight:600;"></span>
+                </div>
+                <div style="padding: 12px; min-height: 40px;">
+                    <p style="margin: 0; color: #999;">Loading schedule...</p>
+                </div>
+            </div>
+
+            <div style="margin:-12px auto 35px auto; text-align:center; max-width:300px;">
+                <button id="schedule-lookup-link" type="button" style="background:none; border:none; color:#0A66C2; padding:0; font-size:14px; font-weight:700; text-decoration:underline; cursor:pointer;">
+                    View Schedule by Date
+                </button>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:15px; max-width: 300px; margin: 0 auto;">
+                <button id="dashboard-btn" class="cta" style="padding: 25px; font-size: 18px; background: #0A66C2; color: white; border: none; border-radius: 8px;">Lawn Care Tracker</button>
+                <button id="renovation-btn" class="cta" style="padding: 15px; background: #eee; border: none; border-radius: 8px;">Renovation Tracker</button>
+                <button id="employee-btn" class="cta" style="padding: 15px; background: #eee; border: none; border-radius: 8px;">Employee Tracker</button>
+            </div>
+        </section>
+
+        <section id="dashboard" style="display:none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px;">
+                <h2>Lawn Tracker</h2>
+                <button onclick="location.reload()" style="background:none; border:none; color:#0A66C2; font-size: 14px;">Refresh</button>
+            </div>
+            <div id="lawn-list">
+                <p style="padding: 20px;">Loading clients...</p>
+            </div>
+            <div style="height: 80px;"></div> 
+        </section>
+
+        <section id="calendar-view" style="display: none; padding: 20px;">
+            <h2>Work History</h2>
+            <input type="date" id="calendar-picker" style="padding: 12px; width: 100%; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px;">
+            <div id="day-summary" style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <p>Select a date to see completed jobs.</p>
+            </div>
+        </section>
+
+        <div id="schedule-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
+            <div style="background:white; margin:15% auto; padding:20px; width:90%; max-width:400px; border-radius:12px;">
+                <h3 style="margin-top:0; color:#0A66C2;">Schedule for <span id="schedule-client-name"></span></h3>
+                <form id="schedule-form">
+                    <input type="hidden" id="schedule-client-id">
+                    <p style="margin-bottom:10px; font-weight:bold;">Services:</p>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom:15px;">
+                        <label><input type="checkbox" name="service-type" value="Lawn Care"> Lawn Care</label>
+                        <label><input type="checkbox" name="service-type" value="Renovation"> Renovation</label>
+                        <label><input type="checkbox" name="service-type" value="Pressure Washing"> Pressure Wash</label>
+                    </div>
+                    <p style="margin-bottom:5px; font-weight:bold;">Date:</p>
+                    <input type="date" id="schedule-date" required style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                    <p style="margin-bottom:5px; font-weight:bold;">Notes:</p>
+                    <textarea id="schedule-notes" placeholder="Gate codes, dog info, etc." style="width:100%; height:60px; padding:10px; margin-bottom:20px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></textarea>
+                    <div style="display:flex; gap:10px;">
+                        <button type="submit" style="flex:2; padding:12px; background:#0A66C2; color:white; border:none; border-radius:6px; font-weight:bold;">Save Schedule</button>
+                        <button type="button" onclick="closeScheduleModal()" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="schedule-lookup-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
+            <div style="background:white; margin:12% auto; padding:20px; width:90%; max-width:440px; border-radius:12px; max-height:80vh; overflow-y:auto;">
+                <h3 style="margin-top:0; color:#0A66C2;">Check Schedule by Date</h3>
+                <p style="margin:4px 0 12px 0; font-size:12px; color:#666;">Check past or future appointments when needed.</p>
+                <input type="date" id="schedule-lookup-date" style="padding:10px; border:1px solid #ddd; border-radius:8px; width:100%; box-sizing:border-box; margin-bottom:14px;">
+                <div id="schedule-lookup-results" style="padding:12px; min-height:52px; background:#f9f9f9; border-radius:8px; margin-bottom:14px;">
+                    <p style="margin:0; color:#999;">Choose a date to view the schedule.</p>
+                </div>
+                <div style="display:flex; justify-content:flex-end;">
+                    <button type="button" onclick="closeScheduleLookupModal()" style="background:#666; color:white;">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="checkoff-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
+            <div style="background:white; margin:10% auto; padding:20px; width:90%; max-width:400px; border-radius:12px; max-height: 85vh; overflow-y: auto;">
+                <h3 style="color:#0A66C2; margin-bottom:15px;">Check Off: <span id="co-client-name"></span></h3>
+                <div style="margin-bottom:15px;">
+                    <label for="co-date-display" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Date</label>
+                    <input type="text" id="co-date-display" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#555;">
+                </div>
+                <p style="margin:0 0 15px 0; font-size:14px; color:#111; font-weight:600;">Service Type: <span style="font-weight:400; color:#111;">Lawn Care</span></p>
+                <div style="background: #f0f7ff; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                    <p style="font-weight: bold; margin-bottom: 5px; font-size: 14px;">⏱ Job Duration</p>
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px;">Start</label>
+                            <input type="time" id="co-start" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size: 11px;">End</label>
+                            <input type="time" id="co-end" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        </div>
+                    </div>
+                </div>
+                <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">💰 Payment</p>
+                <div style="margin-bottom:12px;">
+                    <label for="co-base-price" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Standard Price</label>
+                    <input type="number" id="co-base-price" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#555;">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div>
+                        <label for="co-extra-tip" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Extra / Tip</label>
+                        <input type="number" id="co-extra-tip" min="0" step="0.01" placeholder="0.00" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label for="co-total" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Total Collected</label>
+                        <input type="number" id="co-total" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#0A66C2; font-weight:700;">
+                    </div>
+                </div>
+                <p style="font-weight: bold; margin-bottom: 10px; font-size: 14px;"> Payment Method</p>
+                <select id="co-method" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc;">
+                     <option value="Pay later" selected>Pay later</option>
+                     <option value="Cash">Cash</option>
+                     <option value="Check">Check</option>
+                     <option value="Venmo">Venmo</option>
+                     <option value="CashApp">CashApp</option>
+                </select>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="submitCheckOff()" style="flex:2; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;">Complete Job</button>
+                    <button onclick="closeCheckOffModal()" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="add-client-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
+            <div style="background:white; margin:10% auto; padding:20px; width:90%; max-width:420px; border-radius:12px; max-height:85vh; overflow-y:auto;">
+                <h3 style="margin-top:0; color:#0A66C2;">Update / New Lawn Client</h3>
+                <p style="font-size:12px; color:#666; margin-top:-4px; margin-bottom:12px;">Choose an existing client to update, or add a new lawn client.</p>
+                <form id="new-client-form">
+                    <input type="hidden" id="nc-client-id">
+
+                    <label for="nc-client-select" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Client List</label>
+                    <select id="nc-client-select" style="width:100%; margin-bottom:12px; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                        <option value="">Select existing client</option>
+                        <option value="__new__">+ Add New Client</option>
+                    </select>
+
+                    <div id="nc-selected-client" style="display:none; margin-bottom:12px; padding:10px 12px; background:#f5f9ff; border-radius:8px; color:#0A66C2; font-weight:600;"></div>
+
+                    <div id="nc-name-wrap" style="display:none; margin-bottom:12px;">
+                        <label for="nc-name" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Client Name</label>
+                        <input type="text" id="nc-name" placeholder="Client Name" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                    </div>
+
+                    <div style="margin-bottom:12px;">
+                        <label for="nc-address" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Address</label>
+                        <input type="text" id="nc-address" placeholder="Address" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label for="nc-phone" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Phone</label>
+                            <input type="tel" id="nc-phone" placeholder="Phone Number" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label for="nc-email" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Email</label>
+                            <input type="email" id="nc-email" placeholder="Email Address" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                        <div>
+                            <label for="nc-freq" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Frequency (Days)</label>
+                            <input type="number" id="nc-freq" placeholder="Frequency (Days)" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label for="nc-lastcut" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Last Cut Date</label>
+                            <input type="date" id="nc-lastcut" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:20px;">
+                        <label for="nc-price" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Price per Cut ($)</label>
+                        <input type="number" id="nc-price" placeholder="Price per Cut ($)" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
+                    </div>
+
+                    <div style="display:flex; gap:10px;">
+                        <button id="nc-submit-btn" type="submit" style="flex:2; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;">Save Client</button>
+                        <button type="button" onclick="closeClientModal()" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <nav class="bottom-nav" style="position: fixed; bottom: 0; width: 100%; display: none; justify-content: space-around; background: white; padding: 10px 0; border-top: 1px solid #ddd; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
+        <button onclick="location.reload()" style="background:none; border:none; color:#666;">🏠 Home</button>
+        <button id="calendar-btn" style="background:none; border:none; color:#666;">📅 Calendar</button>
+        <button id="add-job-btn" style="background:#0A66C2; color:white; border:none; padding:6px 8px; border-radius:16px; font-weight:bold; font-size:12px; white-space:nowrap;">Update/New</button>
+    </nav>
+
+    <script>
+        // NAVIGATION LOGIC
+        document.getElementById('dashboard-btn').addEventListener('click', () => {
+            document.getElementById('landing').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            document.querySelector('.bottom-nav').style.display = 'flex';
+        });
+
+        document.getElementById('employee-btn').onclick = () => window.location.href = 'employee.html';
+        document.getElementById('renovation-btn').onclick = () => window.location.href = 'renovation.html';
+
+
+        // MODAL HELPERS
+        function closeScheduleModal() { document.getElementById('schedule-modal').style.display = 'none'; }
+        function closeScheduleLookupModal() { document.getElementById('schedule-lookup-modal').style.display = 'none'; }
+        function closeCheckOffModal() { document.getElementById('checkoff-modal').style.display = 'none'; }
+        function closeClientModal() {
+            document.getElementById('add-client-modal').style.display = 'none';
+            const form = document.getElementById('new-client-form');
+            if (form) form.reset();
+            if (typeof handleClientSelectionChange === 'function') handleClientSelectionChange();
+        }
+    </script>
+
+    <script src="app.js"></script>
+</body>
+</html>

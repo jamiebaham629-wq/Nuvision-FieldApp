@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Tracker - NuVision</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+            background: #f4f4f4;
+            padding: 16px;
+            padding-bottom: 100px;
+        }
+
+        header {
+            text-align: center;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            color: #0A66C2;
+            margin-bottom: 5px;
+        }
+
+        .back-btn {
+            background: #0A66C2;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .back-btn:hover {
+            background: #055099;
+        }
+
+        .employee-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            border-left: 5px solid #0A66C2;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .employee-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+        }
+
+        .employee-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .employee-name {
+            font-weight: bold;
+            font-size: 16px;
+            color: #0A66C2;
+        }
+
+        .hourly-rate {
+            font-size: 14px;
+            color: #666;
+            font-weight: bold;
+        }
+
+        .employee-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .stat-box {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #0A66C2;
+        }
+
+        .stat-label {
+            color: #999;
+            font-size: 11px;
+            margin-bottom: 3px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            font-size: 14px;
+            color: #0A66C2;
+        }
+
+        #employee-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 12px;
+        }
+
+        .modal-content h3 {
+            margin-top: 0;
+            color: #0A66C2;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #0A66C2;
+            box-shadow: 0 0 5px rgba(10, 102, 194, 0.3);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            background: white;
+            padding: 10px 0;
+            border-top: 1px solid #ddd;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            z-index: 900;
+        }
+
+        .bottom-nav button {
+            flex: 1 1 auto;
+            margin: 0 6px;
+            padding: 12px 10px;
+            font-size: 16px;
+            border-radius: 10px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-save {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-cancel {
+            background: #666;
+            color: white;
+        }
+
+        .earnings-summary {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f8ff;
+            border-radius: 6px;
+            border-left: 3px solid #28a745;
+        }
+
+        .earnings-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .earnings-amount {
+            font-size: 16px;
+            font-weight: bold;
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="home-logo-wrap">
+            <img class="app-header-logo" src="nuvisionlogo.PNG" alt="NuVision company logo">
+        </div>
+        <h3 class="app-header-title">NuVision Renovation and Lawn Care</h3>
+        <p class="app-header-subtitle">Employee Tracker</p>
+    </header>
+
+    <!-- Employee List -->
+    <div id="employee-list">
+        <p style="padding: 20px; text-align: center; color: #999;">Loading employees...</p>
+    </div>
+
+    <!-- Add Hours Modal -->
+    <div id="add-hours-modal" class="modal">
+        <div class="modal-content">
+            <h3>Add Hours for <span id="modal-employee-name"></span></h3>
+            <form id="hours-form" onsubmit="submitHours(event)">
+                <div class="form-group">
+                    <label for="work-date">Date</label>
+                    <input type="date" id="work-date" required>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div class="form-group">
+                        <label for="hours-input">Hours</label>
+                        <input type="number" id="hours-input" min="0" max="24" placeholder="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="minutes-input">Minutes</label>
+                        <input type="number" id="minutes-input" min="0" max="59" placeholder="0" required>
+                    </div>
+                </div>
+                <div class="earnings-summary">
+                    <div class="earnings-label">Total Hours (Decimal): <span id="total-hours-decimal" style="font-weight: bold; color: #0A66C2;">0.00</span></div>
+                </div>
+                <div class="earnings-summary">
+                    <div class="earnings-label">Daily Earnings:</div>
+                    <div class="earnings-amount" id="earnings-preview">$0.00</div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn-save">Save Hours</button>
+                    <button type="button" class="btn-cancel" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="add-employee-modal" class="modal">
+        <div class="modal-content">
+            <h3>Add New Employee</h3>
+            <form id="employee-form" onsubmit="submitNewEmployee(event)">
+                <div class="form-group">
+                    <label for="emp-name">Employee Name</label>
+                    <input type="text" id="emp-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="emp-rate">Hourly Rate</label>
+                    <input type="number" id="emp-rate" min="0" step="0.01" placeholder="0.00" required>
+                </div>
+                <div style="margin:-4px 0 15px 0; font-size:12px; color:#666;">Employee ID will be generated automatically.</div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn-save">Save Employee</button>
+                    <button type="button" class="btn-cancel" onclick="closeEmployeeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <button onclick="location.href='index.html'" style="background:none; color:#666;">🏠 Home</button>
+        <button id="add-employee-btn" style="background:#0A66C2; color:white;">+ Employee</button>
+    </nav>
+
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwwAg0ymav4ll5h5h5O6DtghVeRjcGoAwyXzJoV-WNJnAucm4QFEPCC5n5Cyn8G7o2W/exec";
+
+        let employees = [];
+        let selectedEmployee = null;
+
+        // Fetch employees from Google Sheet
+        async function fetchEmployees() {
+            const listContainer = document.getElementById('employee-list');
+            listContainer.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">Loading employees...</p>';
+
+            try {
+                const response = await fetch(WEB_APP_URL);
+                const data = await response.json();
+
+                console.log("Fetched data:", data);
+                console.log("Employees data:", data.employees);
+
+                if (!data || !data.employees || data.employees.length === 0) {
+                    listContainer.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">No employees added yet.</p>';
+                    return;
+                }
+
+                // Skip header row and map employee data
+                const empRows = data.employees.slice(1);
+                console.log("Employee rows after slicing:", empRows);
+
+                employees = empRows.map(row => ({
+                    id: row[0] || "",
+                    name: row[1] || "Unknown",
+                    hourlyRate: parseFloat(row[2]) || 0,
+                    todayHours: parseFloat(row[3]) || 0,
+                    todayEarnings: parseFloat(row[4]) || 0,
+                    weeklyHours: parseFloat(row[5]) || 0,
+                    weeklyEarnings: parseFloat(row[6]) || 0
+                }));
+
+                console.log("Mapped employees:", employees);
+
+                renderEmployees();
+            } catch (error) {
+                console.error("Error fetching employees:", error);
+                listContainer.innerHTML = '<p style="color: red; padding: 20px;">Error loading employees. Check console for details.</p>';
+            }
+        }
+
+        // Render employees to the page
+        function renderEmployees() {
+            const listContainer = document.getElementById('employee-list');
+
+            if (!employees || employees.length === 0) {
+                listContainer.innerHTML = '<p style="padding: 20px; text-align: center; color: #999;">No employees added yet.</p>';
+                return;
+            }
+
+            let html = '';
+            employees.forEach(emp => {
+                const safeName = String(emp.name || '').replace(/'/g, "\\'");
+                html += `
+                    <div class="employee-card" onclick="openAddHoursModal('${emp.id}', '${safeName}', ${emp.hourlyRate})">
+                        <div class="employee-header">
+                            <div class="employee-name">${emp.name}</div>
+                            <div class="hourly-rate">$${emp.hourlyRate.toFixed(2)}/hr</div>
+                        </div>
+                        <div class="employee-stats">
+                            <div class="stat-box">
+                                <div class="stat-label">Today's Hours</div>
+                                <div class="stat-value">${emp.todayHours}h</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Today's Earnings</div>
+                                <div class="stat-value">$${emp.todayEarnings.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = html;
+        }
+
+        // Modal functions
+        function openAddHoursModal(empId, empName, hourlyRate) {
+            selectedEmployee = { id: empId, name: empName, hourlyRate: hourlyRate };
+            document.getElementById('modal-employee-name').textContent = empName;
+            document.getElementById('add-hours-modal').style.display = 'block';
+            
+            // Set today's date as default
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            document.getElementById('work-date').value = todayStr;
+            
+            // Initialize hours and minutes
+            document.getElementById('hours-input').value = '0';
+            document.getElementById('minutes-input').value = '0';
+        }
+
+        function closeModal() {
+            document.getElementById('add-hours-modal').style.display = 'none';
+            document.getElementById('hours-form').reset();
+            document.getElementById('total-hours-decimal').textContent = '0.00';
+            document.getElementById('earnings-preview').textContent = '$0.00';
+            selectedEmployee = null;
+        }
+
+        function openAddEmployeeModal() {
+            document.getElementById('add-employee-modal').style.display = 'block';
+            document.getElementById('employee-form').reset();
+        }
+
+        function closeEmployeeModal() {
+            document.getElementById('add-employee-modal').style.display = 'none';
+            document.getElementById('employee-form').reset();
+        }
+
+        async function submitNewEmployee(event) {
+            event.preventDefault();
+
+            const employeeName = document.getElementById('emp-name').value.trim();
+            const hourlyRate = document.getElementById('emp-rate').value || '0';
+
+            if (!employeeName) {
+                alert('Please enter an employee name.');
+                return;
+            }
+
+            try {
+                const resp = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'addEmployee',
+                        employeeName,
+                        hourlyRate,
+                        Name: employeeName,
+                        HourlyRate: hourlyRate
+                    })
+                });
+
+                const resultText = await resp.text();
+
+                if (resp.ok && /success/i.test(resultText)) {
+                    alert('Employee added: ' + employeeName);
+                    closeEmployeeModal();
+                    fetchEmployees();
+                } else {
+                    alert('Employee save failed. Apps Script response: ' + (resultText || 'No response'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Update earnings preview as user types hours/minutes
+        document.addEventListener('DOMContentLoaded', function() {
+            const hoursInput = document.getElementById('hours-input');
+            const minutesInput = document.getElementById('minutes-input');
+            
+            function updatePreview() {
+                if (selectedEmployee) {
+                    const hours = parseInt(hoursInput.value) || 0;
+                    const minutes = parseInt(minutesInput.value) || 0;
+                    
+                    // Convert minutes to decimal hours
+                    const decimalHours = hours + (minutes / 60);
+                    
+                    // Calculate earnings
+                    const earnings = decimalHours * selectedEmployee.hourlyRate;
+                    
+                    // Display decimal hours
+                    document.getElementById('total-hours-decimal').textContent = decimalHours.toFixed(2);
+                    
+                    // Display earnings
+                    document.getElementById('earnings-preview').textContent = '$' + earnings.toFixed(2);
+                }
+            }
+            
+            if (hoursInput) hoursInput.addEventListener('input', updatePreview);
+            if (minutesInput) minutesInput.addEventListener('input', updatePreview);
+
+            const addEmployeeBtn = document.getElementById('add-employee-btn');
+            if (addEmployeeBtn) addEmployeeBtn.addEventListener('click', openAddEmployeeModal);
+        });
+
+        async function submitHours(event) {
+            event.preventDefault();
+
+            const date = document.getElementById('work-date').value;
+            const hours = parseInt(document.getElementById('hours-input').value) || 0;
+            const minutes = parseInt(document.getElementById('minutes-input').value) || 0;
+            
+            // Calculate decimal hours
+            const decimalHours = hours + (minutes / 60);
+            const earnings = decimalHours * selectedEmployee.hourlyRate;
+
+            try {
+                const resp = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'addEmployeeHours',
+                        employeeId: selectedEmployee.id,
+                        employeeName: selectedEmployee.name,
+                        date: date,
+                        hours: decimalHours,
+                        earnings: earnings
+                    })
+                });
+
+                const resultText = await resp.text();
+
+                if (resp.ok && /success/i.test(resultText)) {
+                    alert("Hours added for " + selectedEmployee.name + "!");
+                    closeModal();
+                    fetchEmployees();
+                } else {
+                    alert("Error adding hours. Apps Script response: " + (resultText || 'No response'));
+                }
+            } catch (error) {
+                alert("Error: " + error.message);
+            }
+        }
+
+        // Load employees when page opens
+        window.onload = function() {
+            fetchEmployees();
+        };
+    </script>
+</body>
+</html>

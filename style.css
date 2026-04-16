@@ -1,0 +1,229 @@
+:root {
+    --nuvision-blue: #0A66C2;
+    --nuvision-green: #90C14D;
+    --status-red: #ff4d4d;
+    --status-yellow: #ffcc00;
+}
+
+body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: #f4f4f4; padding: 16px; padding-bottom: 16px; -webkit-tap-highlight-color: transparent; }
+
+.app-header {
+    text-align: center;
+    padding: 10px 12px 14px;
+    margin-bottom: 10px;
+}
+
+.home-logo-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+#company-logo,
+.app-header-logo {
+    width: min(100%, 300px);
+    height: auto;
+    display: block;
+}
+
+.app-header-title {
+    color: var(--nuvision-blue);
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.app-header-subtitle {
+    margin: 4px 0 0 0;
+    color: #666;
+    font-size: 12px;
+}
+
+
+/* Changed from .client-card to .client-row to match app.js */
+.client-row {
+    background: white;
+    margin-bottom: 14px;
+    padding: 14px;
+    border-radius: 10px;
+    border-left: 10px solid gray;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    min-height: 64px;
+}
+
+.client-card-layout {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.client-info-block {
+    flex: 1;
+    min-width: 0;
+}
+
+.client-name-line {
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: #222;
+}
+
+.client-name-text {
+    line-height: 1.25;
+}
+
+.client-price-line {
+    font-size: 13px;
+    color: #0A66C2;
+    margin-top: 4px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.client-address-line {
+    font-size: 12px;
+    color: gray;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.client-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.client-action-btn {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 12px !important;
+    min-width: 86px;
+}
+
+.client-action-btn.secondary {
+    background: #eee !important;
+    color: #333 !important;
+}
+
+.client-action-btn.primary {
+    background: #0A66C2 !important;
+    color: white !important;
+}
+
+/* These MUST match the status strings returned by getStatus() */
+.client-row.green { border-left-color: var(--nuvision-green); }
+.client-row.yellow { border-left-color: var(--status-yellow); }
+.client-row.red { border-left-color: var(--status-red); }
+.client-row.new {border-left-color: #800080; /* Purple */}
+
+button {
+    background-color: var(--nuvision-blue);
+    color: white;
+    border: none;
+    padding: 14px 13px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 17px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+button:active { transform: scale(0.98); }
+
+/* Lawn list container - add padding for fixed bottom nav */
+#lawn-list {
+    padding-bottom: 100px;
+}
+
+/* Bottom nav buttons (mobile-friendly) */
+.bottom-nav button {
+    flex: 1 1 0;
+    margin: 0 2px;
+    padding: 6px 4px;
+    font-size: 12px;
+    border-radius: 10px;
+    min-width: 0;
+}
+
+/* Make inputs easier to tap */
+input[type="date"] {
+    padding: 12px 14px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    box-sizing: border-box;
+}
+
+/* Small helpers */
+.status-pill {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+}
+
+@media (max-width: 640px) {
+    .client-card-layout {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .client-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .client-action-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        font-size: 11px !important;
+        padding: 8px 8px !important;
+    }
+
+    .client-price-line {
+        font-size: 12px;
+    }
+
+    .client-address-line {
+        font-size: 11px;
+    }
+}
+
+@media (min-width: 700px) {
+    body { padding: 24px; }
+    button { font-size: 15px; padding: 10px 14px; }
+    .client-row { padding: 14px; min-height: 56px; }
+}
+
+/* Landing large CTA adjustments */
+#landing button { width: 100%; }
+#landing .secondary { background: white; color: var(--nuvision-blue); border: 2px solid var(--nuvision-blue); }
+
+/* Primary CTA class used across landing buttons */
+.cta {
+    background: var(--nuvision-blue) !important;
+    color: white !important;
+    border: none !important;
+    padding: 18px 24px !important;
+    font-size: 20px !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+}
+
+.job-time-btn {
+    background-color: var(--status-yellow);
+    color: #333 !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    margin-left: 5px;
+}

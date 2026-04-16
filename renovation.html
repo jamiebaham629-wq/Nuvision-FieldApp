@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Renovation Management — NuVision</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="home-logo-wrap">
+            <img class="app-header-logo" src="nuvisionlogo.PNG" alt="NuVision company logo">
+        </div>
+        <h3 class="app-header-title">NuVision Renovation and Lawn Care</h3>
+        <p class="app-header-subtitle">Renovation Tracker</p>
+    </header>
+
+    <main style="padding:20px 20px 100px 20px; max-width:950px; margin:0 auto;">
+        <section style="max-width:240px; background:#f8fbff; border:1px solid #e3ecf7; border-radius:12px; padding:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); margin-bottom:16px;">
+            <h2 style="margin:0 0 10px 0; color:#333; font-size:15px;">Project Status</h2>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <button type="button" onclick="openStatusList('Estimate')" style="background:white; color:inherit; border:1px solid #eee; border-radius:10px; padding:10px 12px; box-shadow:none; text-align:left; width:100%;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <div>
+                            <div style="font-size:12px; color:#666;">Estimate</div>
+                            <div style="font-size:10px; color:#999; margin-top:2px;">Tap to view</div>
+                        </div>
+                        <div id="estimate-count" style="font-size:22px; font-weight:700; color:#ff9800;">0</div>
+                    </div>
+                </button>
+                <button type="button" onclick="openStatusList('Accepted')" style="background:white; color:inherit; border:1px solid #eee; border-radius:10px; padding:10px 12px; box-shadow:none; text-align:left; width:100%;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <div>
+                            <div style="font-size:12px; color:#666;">Accepted</div>
+                            <div style="font-size:10px; color:#999; margin-top:2px;">Tap to view</div>
+                        </div>
+                        <div id="accepted-count" style="font-size:22px; font-weight:700; color:#7b61ff;">0</div>
+                    </div>
+                </button>
+                <button type="button" onclick="openStatusList('Active')" style="background:white; color:inherit; border:1px solid #eee; border-radius:10px; padding:10px 12px; box-shadow:none; text-align:left; width:100%;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <div>
+                            <div style="font-size:12px; color:#666;">Active</div>
+                            <div style="font-size:10px; color:#999; margin-top:2px;">Tap to view</div>
+                        </div>
+                        <div id="active-count" style="font-size:22px; font-weight:700; color:#0A66C2;">0</div>
+                    </div>
+                </button>
+            </div>
+        </section>
+
+        <section style="background:white; border-radius:12px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+            <h2 style="margin-top:0; color:#333;">Active Projects</h2>
+            <div id="renovation-list">
+                <p style="color:#777; margin:0;">Loading renovation projects...</p>
+            </div>
+        </section>
+    </main>
+
+    <nav class="bottom-nav" style="position:fixed; bottom:0; left:0; width:100%; display:flex; justify-content:space-around; background:white; padding:10px 0; border-top:1px solid #ddd; box-shadow:0 -2px 10px rgba(0,0,0,0.05); z-index:900;">
+        <button onclick="location.href='index.html'" style="background:none; border:none; color:#666;">🏠 Home</button>
+        <button id="add-project-btn" style="background:#0A66C2; color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:bold;">+ Add Project</button>
+    </nav>
+
+    <div id="project-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:1000;">
+        <div style="background:white; margin:5% auto; width:92%; max-width:460px; border-radius:12px; padding:20px; max-height:88vh; overflow-y:auto;">
+            <h3 style="margin-top:0; color:#0A66C2;">Add Renovation Project</h3>
+            <form id="project-form">
+                <div style="margin-bottom:12px;">
+                    <label for="rp-client-select" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Attach Client</label>
+                    <select id="rp-client-select" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                        <option value="">Select from master client list</option>
+                        <option value="__new__">+ Add New Client</option>
+                    </select>
+                    <div id="rp-client-summary" style="display:none; margin-top:8px; font-size:12px; color:#555; background:#f7f9fc; padding:10px; border-radius:8px;"></div>
+                </div>
+
+                <div id="rp-new-client-fields" style="display:none; margin-bottom:12px;">
+                    <input id="rp-client" type="text" placeholder="Client name" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                    <input id="rp-client-address" type="text" placeholder="Address" style="width:100%; padding:12px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <input id="rp-client-phone" type="tel" placeholder="Phone number" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                        <input id="rp-client-email" type="email" placeholder="Email address" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                    </div>
+                    <div style="font-size:12px; color:#666; margin-top:8px;">New renovation clients will also be saved to the master client list.</div>
+                </div>
+
+                <input id="rp-title" type="text" placeholder="Job Short Title" required style="width:100%; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                <textarea id="rp-description" placeholder="Project description" style="width:100%; height:80px; padding:12px; margin-bottom:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></textarea>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div>
+                        <label for="rp-type" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Project Type</label>
+                        <select id="rp-type" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px;">
+                            <option value="Structural Build">Structural Build</option>
+                            <option value="Interior Remodel" selected>Interior Remodel</option>
+                            <option value="Repair & Restore">Repair & Restore</option>
+                            <option value="Wash & Cleanup">Wash & Cleanup</option>
+                            <option value="Other (No Progress Bar)">Other (No Progress Bar)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="rp-status" style="display:block; font-size:13px; font-weight:600; color:#444; margin-bottom:6px;">Status</label>
+                        <select id="rp-status" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px;">
+                            <option value="Estimate">Estimate</option>
+                            <option value="Accepted">Accepted</option>
+                            <option value="Active">Active</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <input id="rp-materials" type="number" step="0.01" placeholder="Materials estimate" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                    <input id="rp-labor" type="number" step="0.01" placeholder="Labor quote" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" style="flex:2; background:#0A66C2; color:white;">Save Project</button>
+                    <button type="button" id="close-project-btn" style="flex:1; background:#666; color:white;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="renovation-schedule-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:1002;">
+        <div style="background:white; margin:5% auto; width:92%; max-width:460px; border-radius:12px; padding:20px; max-height:88vh; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.22);">
+            <h3 style="margin-top:0; color:#0A66C2;">Schedule for <span id="reno-schedule-client-name"></span></h3>
+            <form id="reno-schedule-form">
+                <input type="hidden" id="reno-schedule-project-id">
+                <p style="margin-bottom:10px; font-weight:bold;">Services:</p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                    <label><input type="checkbox" name="reno-service-type" value="Lawn Care"> Lawn Care</label>
+                    <label><input type="checkbox" name="reno-service-type" value="Renovation"> Renovation</label>
+                    <label><input type="checkbox" name="reno-service-type" value="Pressure Washing"> Pressure Wash</label>
+                </div>
+                <p style="margin-bottom:5px; font-weight:bold;">Date:</p>
+                <input type="date" id="reno-schedule-date" required style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                <p style="margin-bottom:5px; font-weight:bold;">Notes:</p>
+                <textarea id="reno-schedule-notes" placeholder="Task details, materials, access info, etc." style="width:100%; height:70px; padding:10px; margin-bottom:20px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></textarea>
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" style="flex:2; padding:12px; background:#0A66C2; color:white; border:none; border-radius:6px; font-weight:bold;">Save Schedule</button>
+                    <button type="button" id="close-schedule-btn" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="project-detail-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:1001;">
+        <div style="background:white; margin:5% auto; width:92%; max-width:520px; border-radius:12px; padding:20px; max-height:88vh; overflow-y:auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+                <h3 id="detail-title" style="margin:0; color:#0A66C2;">Project Details</h3>
+                <button type="button" id="close-detail-btn" style="background:#666; color:white;">Close</button>
+            </div>
+            <div id="project-detail-content"></div>
+        </div>
+    </div>
+
+    <div id="status-list-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:1003;">
+        <div style="background:white; margin:5% auto; width:92%; max-width:560px; border-radius:12px; padding:20px; max-height:88vh; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.22);">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+                <h3 id="status-list-title" style="margin:0; color:#0A66C2;">Project List</h3>
+                <button type="button" id="close-status-list-btn" style="background:#666; color:white;">Close</button>
+            </div>
+            <div id="status-list-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwwAg0ymav4ll5h5h5O6DtghVeRjcGoAwyXzJoV-WNJnAucm4QFEPCC5n5Cyn8G7o2W/exec';
+        const milestoneTemplates = {};
+        let templateDataAvailable = false;
+        let projects = [];
+        let masterClients = [];
+
+        function normalizeProjectType(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/&/g, 'and')
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim();
+        }
+
+        async function fetchWebAppData() {
+            const response = await fetch(WEB_APP_URL);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        async function postToWebApp(payload) {
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            return await response.text();
+        }
+
+        function updateMilestoneOptions() {
+            const typeSelect = document.getElementById('rp-type');
+            const milestoneSelect = document.getElementById('rp-milestone');
+            const helpText = document.getElementById('rp-milestone-help');
+            if (!typeSelect || !milestoneSelect) return;
+
+            const projectType = typeSelect.value;
+            const normalizedType = normalizeProjectType(projectType);
+            const matchedKey = Object.keys(milestoneTemplates).find(key => normalizeProjectType(key) === normalizedType);
+            const milestones = matchedKey ? milestoneTemplates[matchedKey] : [];
+
+            if (projectType === 'Other (No Progress Bar)') {
+                milestoneSelect.innerHTML = '<option value="">No preset milestones</option>';
+                milestoneSelect.disabled = true;
+                if (helpText) helpText.textContent = 'This project type does not use a preset milestone progress bar.';
+                return;
+            }
+
+            milestoneSelect.disabled = false;
+
+            if (!templateDataAvailable) {
+                milestoneSelect.innerHTML = '<option value="">Template data unavailable</option>';
+                if (helpText) helpText.textContent = 'Master Template data is not being returned by the deployed Apps Script yet.';
+                return;
+            }
+
+            if (!milestones.length) {
+                milestoneSelect.innerHTML = '<option value="">No milestones found</option>';
+                if (helpText) helpText.textContent = 'No milestone template was found yet for this project type.';
+                return;
+            }
+
+            milestoneSelect.innerHTML = milestones.map((milestone, index) => {
+                const label = `${index + 1}. ${milestone}`;
+                return `<option value="${label.replace(/"/g, '&quot;')}">${label}</option>`;
+            }).join('');
+
+            if (helpText) {
+                helpText.textContent = `${milestones.length} milestone${milestones.length === 1 ? '' : 's'} loaded from Master Template.`;
+            }
+        }
+
+        function loadMilestoneTemplatesFromData(data) {
+            Object.keys(milestoneTemplates).forEach(key => delete milestoneTemplates[key]);
+
+            const templateRows = data.masterTemplate || [];
+            if (!templateRows.length) {
+                templateDataAvailable = false;
+                updateMilestoneOptions();
+                return;
+            }
+
+            const headers = templateRows[0];
+            headers.forEach((header, columnIndex) => {
+                const key = String(header || '').trim();
+                if (!key) return;
+
+                const milestones = templateRows
+                    .slice(1)
+                    .map(row => row[columnIndex])
+                    .filter(value => value !== '' && value !== null && value !== undefined)
+                    .map(value => String(value).trim())
+                    .filter(Boolean);
+
+                if (milestones.length) {
+                    milestoneTemplates[key] = milestones;
+                }
+            });
+
+            templateDataAvailable = Object.keys(milestoneTemplates).length > 0;
+            updateMilestoneOptions();
+        }
+
+        function formatMoney(value) {
+            const number = parseFloat(value || 0);
+            return '$' + number.toFixed(0);
+        }
+
+        function getNextProjectStatus(status) {
+            const statusMap = {
+                Estimate: 'Accepted',
+                Accepted: 'Active',
+                Active: 'Completed'
+            };
+
+            return statusMap[String(status || '').trim()] || '';
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function normalizeClientName(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function buildMasterClientList(data) {
+            const combined = [];
+            const clientRows = Array.isArray(data.clients) ? data.clients.slice(1) : [];
+            const lawnRows = Array.isArray(data.lawnCare) ? data.lawnCare.slice(1) : [];
+
+            clientRows.forEach(row => {
+                if (!row || !row[1]) return;
+                combined.push({
+                    id: String(row[0] || '').trim(),
+                    name: String(row[1] || '').trim(),
+                    address: String(row[2] || '').trim(),
+                    phone: String(row[3] || '').trim(),
+                    email: String(row[4] || '').trim()
+                });
+            });
+
+            lawnRows.forEach(row => {
+                if (!row || !row[1]) return;
+                combined.push({
+                    id: String(row[0] || '').trim(),
+                    name: String(row[1] || '').trim(),
+                    address: '',
+                    phone: '',
+                    email: ''
+                });
+            });
+
+            const deduped = new Map();
+            combined.forEach(client => {
+                const key = normalizeClientName(client.name);
+                if (!key) return;
+
+                if (!deduped.has(key)) {
+                    deduped.set(key, { ...client });
+                    return;
+                }
+
+                const existing = deduped.get(key);
+                existing.id = existing.id || client.id;
+                existing.address = existing.address || client.address;
+                existing.phone = existing.phone || client.phone;
+                existing.email = existing.email || client.email;
+            });
+
+            masterClients = Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
+            renderClientSelectOptions();
+        }
+
+        function findMasterClientByName(name) {
+            const normalized = normalizeClientName(name);
+            return masterClients.find(client => normalizeClientName(client.name) === normalized) || null;
+        }
+
+        function renderClientSelectOptions(selectedValue = '') {
+            const select = document.getElementById('rp-client-select');
+            if (!select) return;
+
+            const preferredValue = selectedValue || select.value || '';
+            const optionsHtml = masterClients.map(client => `
+                <option value="${escapeHtml(client.name)}">${escapeHtml(client.name)}</option>
+            `).join('');
+
+            select.innerHTML = `
+                <option value="">Select from master client list</option>
+                ${optionsHtml}
+                <option value="__new__">+ Add New Client</option>
+            `;
+
+            const hasMatch = masterClients.some(client => normalizeClientName(client.name) === normalizeClientName(preferredValue));
+            if (preferredValue === '__new__' || hasMatch) {
+                select.value = preferredValue;
+            } else {
+                select.value = '';
+            }
+
+            handleClientSelectionChange();
+        }
+
+        function handleClientSelectionChange() {
+            const select = document.getElementById('rp-client-select');
+            const newClientFields = document.getElementById('rp-new-client-fields');
+            const summary = document.getElementById('rp-client-summary');
+            const nameInput = document.getElementById('rp-client');
+            const addressInput = document.getElementById('rp-client-address');
+            const phoneInput = document.getElementById('rp-client-phone');
+            const emailInput = document.getElementById('rp-client-email');
+
+            if (!select || !newClientFields || !summary || !nameInput) return;
+
+            if (select.value === '__new__') {
+                newClientFields.style.display = 'block';
+                summary.style.display = 'block';
+                summary.innerHTML = 'Enter the new client details below to save them to the master list and attach this renovation project.';
+                nameInput.value = '';
+                if (addressInput) addressInput.value = '';
+                if (phoneInput) phoneInput.value = '';
+                if (emailInput) emailInput.value = '';
+                return;
+            }
+
+            newClientFields.style.display = 'none';
+
+            const client = findMasterClientByName(select.value);
+            if (!client) {
+                summary.style.display = 'none';
+                nameInput.value = '';
+                return;
+            }
+
+            nameInput.value = client.name;
+            summary.style.display = 'block';
+            summary.innerHTML = `
+                <strong>${escapeHtml(client.name)}</strong><br>
+                ${client.address ? `Address: ${escapeHtml(client.address)}<br>` : ''}
+                ${client.phone ? `Phone: ${escapeHtml(client.phone)}<br>` : ''}
+                ${client.email ? `Email: ${escapeHtml(client.email)}` : 'No contact details saved yet.'}
+            `;
+        }
+
+        function resetProjectForm() {
+            const form = document.getElementById('project-form');
+            if (form) form.reset();
+            const typeInput = document.getElementById('rp-type');
+            if (typeInput) typeInput.value = 'Interior Remodel';
+            renderClientSelectOptions();
+            updateMilestoneOptions();
+        }
+
+        function parseProjectTasks(taskString) {
+            return String(taskString || '')
+                .split(',')
+                .map(task => task.trim())
+                .filter(Boolean)
+                .map(task => {
+                    const isChecked = /^\[(x|X)\]\s*/.test(task);
+                    const label = task.replace(/^\[(x|X| )\]\s*/, '').trim();
+                    return { label, isChecked };
+                });
+        }
+
+        function renderProjectTaskCheckboxes(taskString, projectId) {
+            const tasks = parseProjectTasks(taskString);
+            if (!tasks.length) {
+                return '<div style="font-size:12px; color:#666;">No project tasks listed.</div>';
+            }
+
+            return `
+                <div style="display:grid; gap:8px; margin-top:4px;">
+                    ${tasks.map((task, index) => `
+                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#333;">
+                            <input type="checkbox" ${task.isChecked ? 'checked' : ''} onchange="toggleProjectTask('${String(projectId || '').replace(/'/g, "\\'")}', ${index}, this.checked)">
+                            <span>${escapeHtml(task.label)}</span>
+                        </label>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function getTaskProgress(taskString) {
+            const tasks = parseProjectTasks(taskString);
+            const total = tasks.length;
+            const completed = tasks.filter(task => task.isChecked).length;
+            return { completed, total };
+        }
+
+        async function toggleProjectTask(projectId, taskIndex, isChecked) {
+            const project = projects.find(item => String(item.id || '') === String(projectId || ''));
+            if (!project) return;
+
+            const sourceString = project.projectTasks || project.tasks || project.taskList || project.scheduledTask || '';
+            const tasks = parseProjectTasks(sourceString);
+            if (!tasks[taskIndex]) return;
+
+            tasks[taskIndex].isChecked = isChecked;
+            const updatedTaskString = tasks
+                .map(task => `${task.isChecked ? '[x]' : '[ ]'} ${task.label}`)
+                .join(', ');
+
+            project.projectTasks = updatedTaskString;
+            project.scheduledTask = updatedTaskString;
+
+            try {
+                await postToWebApp({
+                    action: 'updateRenovationTasks',
+                    projectId: project.id,
+                    projectTasks: updatedTaskString
+                });
+            } catch (error) {
+                console.error('Task update error:', error);
+                alert('Unable to update the project tasks right now.');
+            }
+
+            renderProjects();
+            openProjectDetail(projectId);
+        }
+
+        function renderProjects() {
+            const list = document.getElementById('renovation-list');
+            const activeProjects = projects.filter(p => (p.status || '') === 'Active');
+            const estimateCount = projects.filter(p => (p.status || '') === 'Estimate').length;
+            const acceptedCount = projects.filter(p => (p.status || '') === 'Accepted').length;
+            const activeCount = activeProjects.length;
+
+            document.getElementById('estimate-count').textContent = estimateCount;
+            document.getElementById('accepted-count').textContent = acceptedCount;
+            document.getElementById('active-count').textContent = activeCount;
+
+            if (!projects.length) {
+                list.innerHTML = '<p style="color:#777; margin:0;">No renovation projects found in the Google Sheet yet.</p>';
+                return;
+            }
+
+            if (!activeProjects.length) {
+                list.innerHTML = '<p style="color:#777; margin:0;">No active renovation projects right now.</p>';
+                return;
+            }
+
+            list.innerHTML = activeProjects.map(project => {
+                const materials = parseFloat(project.estMaterials ?? project.materials ?? 0) || 0;
+                const labor = parseFloat(project.laborQuote ?? project.labor ?? 0) || 0;
+                const total = (parseFloat(project.totalQuote ?? 0) || (materials + labor)).toFixed(2);
+                const shortTitle = project.shortTitle || project.title || 'Untitled Project';
+                const client = project.client || 'Unknown Client';
+                const taskString = project.projectTasks || project.tasks || project.taskList || project.scheduledTask || '';
+                const progress = getTaskProgress(taskString);
+                const safeId = String(project.id || '').replace(/'/g, "\\'");
+                const safeClient = String(client).replace(/'/g, "\\'");
+
+                return `
+                    <div onclick="openProjectDetail('${safeId}')" style="border:1px solid #e8edf3; border-left:5px solid #0A66C2; border-radius:10px; padding:14px; margin-bottom:12px; cursor:pointer; background:white; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+                        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-weight:700; color:#222;">${client} | ${shortTitle} | ${project.type || 'General'}</div>
+                                <div style="font-size:13px; color:#999; margin-top:3px;">Project ID: ${project.id || 'Not assigned'}</div>
+                            </div>
+                            <div style="background:#eef5ff; color:#0A66C2; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;">${project.status || 'Estimate'}</div>
+                        </div>
+                        <div style="font-size:13px; color:#0A66C2; margin-top:8px; font-weight:600;">Quote: $${total}</div>
+                        <div style="font-size:12px; color:#444; margin-top:4px;">Task Progress: ${progress.completed} of ${progress.total} complete</div>
+                        <div style="display:flex; gap:8px; margin-top:10px;">
+                            <button onclick="event.stopPropagation(); openProjectDetail('${safeId}')" style="background:#0A66C2; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Project Details</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openProjectDetail(projectId) {
+            const project = projects.find(item => String(item.id || '') === String(projectId || ''));
+            if (!project) return;
+
+            const materials = parseFloat(project.estMaterials ?? project.materials ?? 0) || 0;
+            const labor = parseFloat(project.laborQuote ?? project.labor ?? 0) || 0;
+            const total = (parseFloat(project.totalQuote ?? 0) || (materials + labor)).toFixed(2);
+            const title = project.id ? `Project #${project.id}` : (project.shortTitle || project.title || 'Untitled Project');
+            const client = project.client || 'Unknown Client';
+            const description = project.fullDescription || project.description || 'No description yet.';
+            const taskString = project.projectTasks || project.tasks || project.taskList || project.scheduledTask || '';
+            const depositValue = String(project.depositPaid ?? '').trim();
+            const depositDisplay = depositValue ? depositValue : 'Not set';
+            const clientRecord = findMasterClientByName(client);
+
+            const safeId = String(project.id || '').replace(/'/g, "\\'");
+            const safeClient = String(client).replace(/'/g, "\\'");
+            const nextStatus = getNextProjectStatus(project.status);
+
+            document.getElementById('detail-title').textContent = title;
+            document.getElementById('project-detail-content').innerHTML = `
+                <div style="display:grid; gap:10px;">
+                    <div><strong>Client:</strong> ${escapeHtml(client)}</div>
+                    ${clientRecord?.address ? `<div><strong>Address:</strong> ${escapeHtml(clientRecord.address)}</div>` : ''}
+                    ${clientRecord?.phone ? `<div><strong>Phone:</strong> ${escapeHtml(clientRecord.phone)}</div>` : ''}
+                    ${clientRecord?.email ? `<div><strong>Email:</strong> ${escapeHtml(clientRecord.email)}</div>` : ''}
+                    <div><strong>Job Short Title:</strong> ${escapeHtml(project.shortTitle || project.title || 'Not set')}</div>
+                    <div><strong>Status:</strong> ${escapeHtml(project.status || 'Estimate')}</div>
+                    <div><strong>Project Type:</strong> ${escapeHtml(project.type || 'General')}</div>
+                    <div><strong>Description:</strong> ${escapeHtml(description)}</div>
+                    <div><strong>Materials Estimate:</strong> $${materials.toFixed(2)}</div>
+                    <div><strong>Labor Quote:</strong> $${labor.toFixed(2)}</div>
+                    <div><strong>Deposit Paid:</strong> ${depositDisplay}</div>
+                    <div>
+                        <strong>Project Tasks:</strong>
+                        ${renderProjectTaskCheckboxes(taskString, project.id)}
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                        <button onclick="openRenovationScheduleModal('${safeId}', '${safeClient}')" style="background:#eee; color:#333; border:none; padding:10px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">Schedule</button>
+                        ${nextStatus ? `<button onclick="updateProjectStatus('${safeId}', '${nextStatus}')" style="background:#28a745; color:white; border:none; padding:10px 14px; border-radius:4px; cursor:pointer; font-weight:bold;">Move to ${nextStatus}</button>` : ''}
+                    </div>
+                </div>
+            `;
+            document.getElementById('project-detail-modal').style.display = 'block';
+        }
+
+        async function loadRenovationProjects() {
+            const list = document.getElementById('renovation-list');
+            if (list) {
+                list.innerHTML = '<p style="color:#777; margin:0;">Loading renovation projects...</p>';
+            }
+
+            try {
+                const data = await fetchWebAppData();
+                loadMilestoneTemplatesFromData(data);
+                buildMasterClientList(data);
+                projects = Array.isArray(data.renovations) ? data.renovations : [];
+                renderProjects();
+            } catch (error) {
+                console.error('Renovation load error:', error);
+                projects = [];
+                masterClients = [];
+                renderClientSelectOptions();
+                if (list) {
+                    list.innerHTML = '<p style="color:#c62828; margin:0;">Unable to load renovation projects from Google Sheets.</p>';
+                }
+                templateDataAvailable = false;
+                updateMilestoneOptions();
+            }
+        }
+
+        function openProjectModal() {
+            resetProjectForm();
+            document.getElementById('project-modal').style.display = 'block';
+        }
+
+        function closeProjectModal() {
+            document.getElementById('project-modal').style.display = 'none';
+        }
+
+        function openRenovationScheduleModal(projectId, clientName) {
+            document.getElementById('reno-schedule-project-id').value = projectId;
+            document.getElementById('reno-schedule-client-name').textContent = clientName;
+            document.getElementById('reno-schedule-date').value = new Date().toLocaleDateString('en-CA');
+            document.getElementById('reno-schedule-notes').value = '';
+            document.querySelectorAll('input[name="reno-service-type"]').forEach(box => box.checked = false);
+            const renovationOption = document.querySelector('input[name="reno-service-type"][value="Renovation"]');
+            if (renovationOption) renovationOption.checked = true;
+            document.getElementById('renovation-schedule-modal').style.display = 'block';
+        }
+
+        function closeRenovationScheduleModal() {
+            document.getElementById('renovation-schedule-modal').style.display = 'none';
+        }
+
+        function openStatusList(status) {
+            const filteredProjects = projects.filter(project => String(project.status || '') === status);
+            const content = document.getElementById('status-list-content');
+            document.getElementById('status-list-title').textContent = `${status} Projects`;
+
+            if (!filteredProjects.length) {
+                content.innerHTML = `<p style="color:#777; margin:0;">No ${status.toLowerCase()} projects found right now.</p>`;
+            } else {
+                content.innerHTML = `
+                    <div style="display:grid; gap:10px;">
+                        ${filteredProjects.map(project => {
+                            const materials = parseFloat(project.estMaterials ?? project.materials ?? 0) || 0;
+                            const labor = parseFloat(project.laborQuote ?? project.labor ?? 0) || 0;
+                            const total = parseFloat(project.totalQuote ?? 0) || (materials + labor);
+                            const nextStatus = getNextProjectStatus(project.status);
+                            const safeId = String(project.id || '').replace(/'/g, "\\'");
+                            return `
+                                <div style="border:1px solid #e8edf3; border-radius:10px; padding:12px; background:#fafcff;">
+                                    <div><strong>Client:</strong> ${escapeHtml(project.client || 'Unknown Client')}</div>
+                                    <div><strong>Job Short Title:</strong> ${escapeHtml(project.shortTitle || project.title || 'Not set')}</div>
+                                    <div><strong>Project Type:</strong> ${escapeHtml(project.type || 'General')}</div>
+                                    <div><strong>Total Quote:</strong> ${formatMoney(total)}</div>
+                                    ${nextStatus ? `<div style="margin-top:10px;"><button onclick="updateProjectStatus('${safeId}', '${nextStatus}')" style="background:#28a745; color:white; border:none; padding:8px 12px; border-radius:6px; font-weight:bold;">Mark ${nextStatus}</button></div>` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            document.getElementById('status-list-modal').style.display = 'block';
+        }
+
+        function closeStatusList() {
+            document.getElementById('status-list-modal').style.display = 'none';
+        }
+
+        async function updateProjectStatus(projectId, newStatus) {
+            const project = projects.find(item => String(item.id || '') === String(projectId || ''));
+            if (!project || !newStatus) return;
+
+            try {
+                await postToWebApp({
+                    action: 'updateRenovationStatus',
+                    projectId: project.id,
+                    status: newStatus
+                });
+
+                project.status = newStatus;
+                renderProjects();
+                closeStatusList();
+
+                if (newStatus === 'Completed') {
+                    closeProjectDetail();
+                } else {
+                    openProjectDetail(projectId);
+                }
+            } catch (error) {
+                console.error('Project status update error:', error);
+                alert('Unable to update the project status right now.');
+            }
+        }
+
+        async function submitRenovationSchedule(event) {
+            event.preventDefault();
+
+            const projectId = document.getElementById('reno-schedule-project-id').value;
+            const clientName = document.getElementById('reno-schedule-client-name').textContent;
+            const date = document.getElementById('reno-schedule-date').value;
+            const notes = document.getElementById('reno-schedule-notes').value.trim();
+            const services = Array.from(document.querySelectorAll('input[name="reno-service-type"]:checked')).map(box => box.value);
+
+            if (!date) {
+                alert('Please choose a date.');
+                return;
+            }
+
+            if (!services.length) {
+                alert('Please select at least one service.');
+                return;
+            }
+
+            try {
+                await postToWebApp({
+                    action: 'scheduleService',
+                    clientId: `RENOV-${projectId}`,
+                    clientName,
+                    serviceDate: date,
+                    serviceType: services.join(', '),
+                    notes
+                });
+
+                closeRenovationScheduleModal();
+            } catch (error) {
+                console.error('Renovation schedule error:', error);
+                alert('Unable to save the schedule right now.');
+            }
+        }
+
+        function closeProjectDetail() {
+            document.getElementById('project-detail-modal').style.display = 'none';
+        }
+
+        document.getElementById('add-project-btn').addEventListener('click', openProjectModal);
+        document.getElementById('close-project-btn').addEventListener('click', closeProjectModal);
+        document.getElementById('close-schedule-btn').addEventListener('click', closeRenovationScheduleModal);
+        document.getElementById('close-detail-btn').addEventListener('click', closeProjectDetail);
+        document.getElementById('close-status-list-btn').addEventListener('click', closeStatusList);
+        document.getElementById('rp-type').addEventListener('change', updateMilestoneOptions);
+        document.getElementById('reno-schedule-form').addEventListener('submit', submitRenovationSchedule);
+
+        document.getElementById('rp-client-select').addEventListener('change', handleClientSelectionChange);
+
+        document.getElementById('project-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const clientSelectValue = document.getElementById('rp-client-select').value;
+            const selectedClient = findMasterClientByName(clientSelectValue);
+            const enteredClientName = document.getElementById('rp-client').value.trim();
+            const clientName = selectedClient ? selectedClient.name : enteredClientName;
+            const materials = document.getElementById('rp-materials').value || '0';
+            const labor = document.getElementById('rp-labor').value || '0';
+            const shortTitle = document.getElementById('rp-title').value.trim();
+
+            if (!clientName) {
+                alert('Please select an existing client or add a new client first.');
+                return;
+            }
+
+            try {
+                const matchingClient = findMasterClientByName(clientName);
+
+                if (!matchingClient) {
+                    await postToWebApp({
+                        action: 'addClient',
+                        clientName,
+                        clientAddress: document.getElementById('rp-client-address').value.trim(),
+                        clientPhone: document.getElementById('rp-client-phone').value.trim(),
+                        clientEmail: document.getElementById('rp-client-email').value.trim(),
+                        clientFrequency: '7',
+                        clientPrice: '0'
+                    });
+                }
+
+                await postToWebApp({
+                    action: 'addRenovationProject',
+                    client: clientName,
+                    shortTitle,
+                    title: shortTitle,
+                    description: document.getElementById('rp-description').value.trim(),
+                    type: document.getElementById('rp-type').value,
+                    status: document.getElementById('rp-status').value,
+                    materials,
+                    labor,
+                    totalQuote: (parseFloat(materials || 0) + parseFloat(labor || 0)).toFixed(2),
+                    depositPaid: '0'
+                });
+
+                closeProjectModal();
+                resetProjectForm();
+                await loadRenovationProjects();
+            } catch (error) {
+                console.error('Renovation save error:', error);
+                alert('Unable to save the renovation project right now.');
+            }
+        });
+
+        loadRenovationProjects();
+    </script>
+</body>
+</html>
