@@ -116,6 +116,49 @@ function formatDisplayDate(value) {
     return `${month}-${day}-${year}`;
 }
 
+function formatMoney(value) {
+    const amount = parseFloat(value);
+    return isNaN(amount) ? "0.00" : amount.toFixed(2);
+}
+
+function getLogServiceDisplayDate(row) {
+    return formatDisplayDate(row?.[6] || row?.[0] || "");
+}
+
+function isUnpaidLogRow(row) {
+    const serviceType = String(row?.[2] || "").trim().toLowerCase();
+    const method = String(row?.[4] || "").trim().toLowerCase();
+    const paymentStatus = String(row?.[8] || "").trim().toLowerCase();
+
+    if (serviceType && serviceType !== "lawn care") return false;
+    if (paymentStatus === "paid") return false;
+    if (paymentStatus === "unpaid") return true;
+    return method === "pay later";
+}
+
+function getClientUnpaidJobs(clientName) {
+    const targetName = String(clientName || "").trim().toLowerCase();
+
+    return logData
+        .filter(row => String(row?.[1] || "").trim().toLowerCase() === targetName && isUnpaidLogRow(row))
+        .sort((a, b) => {
+            const dateA = parseLocalDate(a?.[6] || a?.[0]) || new Date(0);
+            const dateB = parseLocalDate(b?.[6] || b?.[0]) || new Date(0);
+            return dateB - dateA;
+        });
+}
+
+function getClientPaymentSummary(clientName) {
+    const unpaidJobs = getClientUnpaidJobs(clientName);
+
+    return {
+        unpaidJobs,
+        count: unpaidJobs.length,
+        totalDue: unpaidJobs.reduce((sum, row) => sum + (parseFloat(row?.[3]) || 0), 0),
+        latest: unpaidJobs[0] || null
+    };
+}
+
 // --- 1. THE STATUS ENGINE ---
 function getStatus(lastCutDate, frequency) {
     if (!lastCutDate || lastCutDate === "" || lastCutDate === "No Date") return "new";
@@ -451,10 +494,14 @@ function renderClients() {
     html += displayList.map(client => {
         const status = getStatus(client.lastCut, client.frequency);
         const safeName = escapeName(client.name);
+        const paymentSummary = getClientPaymentSummary(client.name);
         const info = status === "new" ? "New Setup" : `Last Cut: ${formatDisplayDate(client.lastCut)}`;
         const numericPrice = parseFloat(client.price);
         const priceDisplay = isNaN(numericPrice) ? (client.price || "0") : numericPrice.toFixed(2);
         const avgDisplay = client.avgTime && client.avgTime !== "0.00" ? `${client.avgTime}hr` : "No avg time yet";
+        const unpaidBadge = paymentSummary.count
+            ? `<div style="margin-top:6px;"><span style="display:inline-block; background:#fff3cd; color:#8a5b00; padding:4px 8px; border-radius:999px; font-size:11px; font-weight:700;">💸 Unpaid: $${formatMoney(paymentSummary.totalDue)}${paymentSummary.count > 1 ? ` • ${paymentSummary.count} cuts` : ""}</span></div>`
+            : "";
         let dueLabel = "";
 
         if (status === "red") {
@@ -475,9 +522,11 @@ function renderClients() {
                         </div>
                         <div class="client-price-line">Price: $${priceDisplay} • Avg Time: ${avgDisplay}</div>
                         <div class="client-address-line">${info}${client.address ? ` • ${client.address}` : ""}</div>
+                        ${unpaidBadge}
                     </div>
                     <div class="client-actions">
                         <button class="client-action-btn secondary" onclick="openScheduleModal('${client.id}', '${safeName}')">Schedule</button>
+                        ${paymentSummary.count ? `<button class="client-action-btn warning" onclick="openPaymentModal('${client.id}', '${safeName}')">Record Payment</button>` : ""}
                         <button class="client-action-btn primary" onclick="openCheckOffModal('${client.id}', '${safeName}', '${client.price || 0}')">Check Off</button>
                     </div>
                 </div>
@@ -592,12 +641,14 @@ async function fetchLogData(selectedDate) {
         daySummary.innerHTML = `
             <h3 style="margin-top:0;">Jobs on ${selectedDate}</h3>
             <div style="background: white; padding: 15px; border-radius: 8px;">
-                ${jobsForDate.map((job, index) => `
+                ${jobsForDate.map((job, index) => {
+                    const durationText = job[5] ? ` • Duration: ${job[5]}hr` : "";
+                    return `
                     <div style="padding: 12px; border-bottom: ${index === jobsForDate.length - 1 ? "none" : "1px solid #eee"};">
                         <div style="font-weight: bold; color: #0A66C2;">${job[1] || "Unknown Client"}</div>
-                        <div style="font-size: 12px; color: #666;">Time: ${job[2] || "No time"} � Service: ${job[3] || "Lawn Care"}</div>
+                        <div style="font-size: 12px; color: #666;">Service: ${job[2] || "Lawn Care"}${durationText}</div>
                     </div>
-                `).join("")}
+                `;}).join("")}
             </div>
         `;
     } catch (error) {
@@ -784,6 +835,75 @@ async function submitCheckOff() {
     } catch (error) {
         console.error("Check-off Error:", error);
         alert("Unable to complete this job right now.");
+    }
+}
+
+function openPaymentModal(clientId, clientName) {
+    const summary = getClientPaymentSummary(clientName);
+    if (!summary.latest) {
+        alert("No unpaid lawn service was found for this client.");
+        return;
+    }
+
+    const modal = document.getElementById("payment-modal");
+    if (!modal) return;
+
+    modal.dataset.clientId = clientId || "";
+    modal.dataset.clientName = clientName || "";
+    modal.dataset.loggedAt = String(summary.latest[0] || "");
+    modal.dataset.serviceDate = formatDateValue(summary.latest[6] || summary.latest[0] || "");
+    modal.dataset.amount = String(parseFloat(summary.latest[3] || 0) || 0);
+
+    document.getElementById("pay-client-name").textContent = clientName || "";
+    document.getElementById("pay-service-date").value = getLogServiceDisplayDate(summary.latest);
+    document.getElementById("pay-date").value = formatDisplayDate(getLocalDateString());
+    document.getElementById("pay-amount-due").value = formatMoney(summary.latest[3] || 0);
+    document.getElementById("pay-method").value = "Cash";
+
+    const note = document.getElementById("pay-summary-note");
+    if (note) {
+        note.textContent = summary.count > 1
+            ? `There are ${summary.count} unpaid lawn cuts for this client. This will mark the most recent one as paid.`
+            : "This will mark the most recent unpaid lawn cut as paid.";
+    }
+
+    modal.style.display = "block";
+}
+
+function closePaymentModal() {
+    const modal = document.getElementById("payment-modal");
+    if (modal) modal.style.display = "none";
+}
+
+async function submitPaymentUpdate() {
+    const modal = document.getElementById("payment-modal");
+    if (!modal) return;
+
+    const paidMethod = document.getElementById("pay-method")?.value || "";
+    if (!paidMethod) {
+        alert("Please choose a payment method.");
+        return;
+    }
+
+    try {
+        await postToWebApp({
+            action: "recordPayment",
+            clientId: modal.dataset.clientId || "",
+            clientName: modal.dataset.clientName || "",
+            serviceDate: modal.dataset.serviceDate || "",
+            loggedAt: modal.dataset.loggedAt || "",
+            amount: modal.dataset.amount || "0",
+            paidMethod,
+            paidDate: getLocalDateString()
+        });
+
+        closePaymentModal();
+        await fetchSheetData();
+    } catch (error) {
+        console.error("Payment Update Error:", error);
+        alert(/unknown action/i.test(error.message || "")
+            ? "The app is ready, but the Apps Script still needs the Record Payment action added and redeployed."
+            : "Unable to update the payment right now.");
     }
 }
 

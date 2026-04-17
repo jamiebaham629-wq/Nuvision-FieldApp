@@ -51,6 +51,7 @@
             <div style="display:flex; flex-direction:column; gap:15px; max-width: 300px; margin: 0 auto;">
                 <button id="dashboard-btn" class="cta" style="padding: 25px; font-size: 18px; background: #0A66C2; color: white; border: none; border-radius: 8px;">Lawn Care Tracker</button>
                 <button id="renovation-btn" class="cta" style="padding: 15px; background: #eee; border: none; border-radius: 8px;">Renovation Tracker</button>
+                <button id="finance-btn" class="cta" style="padding: 15px; background: #eee; border: none; border-radius: 8px;">Finance Tracker</button>
                 <button id="employee-btn" class="cta" style="padding: 15px; background: #eee; border: none; border-radius: 8px;">Employee Tracker</button>
             </div>
         </section>
@@ -162,6 +163,45 @@
             </div>
         </div>
 
+        <div id="payment-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
+            <div style="background:white; margin:10% auto; padding:20px; width:90%; max-width:400px; border-radius:12px; max-height:85vh; overflow-y:auto;">
+                <h3 style="margin-top:0; color:#0A66C2;">Record Payment: <span id="pay-client-name"></span></h3>
+                <p id="pay-summary-note" style="font-size:12px; color:#666; margin-top:-4px; margin-bottom:12px;">This will mark the most recent unpaid lawn cut as paid.</p>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                    <div>
+                        <label for="pay-service-date" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Service Date</label>
+                        <input type="text" id="pay-service-date" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#555;">
+                    </div>
+                    <div>
+                        <label for="pay-date" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Payment Date</label>
+                        <input type="text" id="pay-date" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#555;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom:12px;">
+                    <label for="pay-amount-due" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Amount Due ($)</label>
+                    <input type="number" id="pay-amount-due" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#0A66C2; font-weight:700;">
+                </div>
+
+                <div style="margin-bottom:18px;">
+                    <label for="pay-method" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Payment Method</label>
+                    <select id="pay-method" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                        <option value="Cash" selected>Cash</option>
+                        <option value="Check">Check</option>
+                        <option value="Venmo">Venmo</option>
+                        <option value="CashApp">CashApp</option>
+                        <option value="Paid">Paid</option>
+                    </select>
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    <button onclick="submitPaymentUpdate()" style="flex:2; padding:12px; background:#ff9800; color:white; border:none; border-radius:6px; font-weight:bold;">Save Payment</button>
+                    <button onclick="closePaymentModal()" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+                </div>
+            </div>
+        </div>
+
         <div id="add-client-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000;">
             <div style="background:white; margin:10% auto; padding:20px; width:90%; max-width:420px; border-radius:12px; max-height:85vh; overflow-y:auto;">
                 <h3 style="margin-top:0; color:#0A66C2;">Update / New Lawn Client</h3>
@@ -239,6 +279,7 @@
 
         document.getElementById('employee-btn').onclick = () => window.location.href = 'employee.html';
         document.getElementById('renovation-btn').onclick = () => window.location.href = 'renovation.html';
+        document.getElementById('finance-btn').onclick = () => window.location.href = 'finance.html';
 
 
         // MODAL HELPERS

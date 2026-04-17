@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finance Tracker — NuVision</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        if (!(localStorage.getItem('nuvisionAccessCode') || '')) {
+            window.location.replace('index.html');
+        }
+    </script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="home-logo-wrap">
+            <img class="app-header-logo" src="nuvisionlogo.PNG" alt="NuVision company logo">
+        </div>
+        <h3 class="app-header-title">NuVision Renovation and Lawn Care</h3>
+        <p class="app-header-subtitle">Finance Tracker</p>
+        <button onclick="signOutFinance()" style="margin-top:8px; background:#f3f6fa; color:#0A66C2; border:1px solid #cfe0f4; border-radius:999px; padding:8px 14px; font-size:12px; font-weight:700;">Sign Out</button>
+    </header>
+
+    <main style="max-width:980px; margin:0 auto; padding:0 0 100px 0;">
+        <section class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-label">Outstanding Balance</div>
+                <div class="summary-value" id="finance-outstanding">$0.00</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Collected Last 14 Days</div>
+                <div class="summary-value" id="finance-recent-total">$0.00</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-label">Open Accounts</div>
+                <div class="summary-value" id="finance-open-count">0</div>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <div>
+                    <h2 style="margin:0; color:#222;">Open Balances</h2>
+                    <p style="margin:4px 0 0 0; color:#666; font-size:12px;">Use this section to update money still owed.</p>
+                </div>
+                <div style="font-size:11px; color:#8a5b00; background:#fff3cd; padding:4px 8px; border-radius:999px; font-weight:700;">Main Finance View</div>
+            </div>
+
+            <div class="filter-row" id="finance-filters">
+                <button type="button" class="filter-chip active" data-filter="all">All</button>
+                <button type="button" class="filter-chip" data-filter="lawn care">Lawn Care</button>
+                <button type="button" class="filter-chip" data-filter="renovation">Renovation</button>
+            </div>
+
+            <div style="margin:12px 0 14px 0;">
+                <label for="finance-client-select" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Client Name</label>
+                <select id="finance-client-select" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box;">
+                    <option value="">Select a client</option>
+                </select>
+            </div>
+
+            <div id="finance-open-balances">
+                <p style="margin:0; color:#777;">Loading finance balances...</p>
+            </div>
+        </section>
+
+        <section class="section-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <div>
+                    <h2 style="margin:0; color:#222;">Recent Payments</h2>
+                    <p style="margin:4px 0 0 0; color:#666; font-size:12px;">Quick view only for payments recorded in the last 2 weeks.</p>
+                </div>
+            </div>
+
+            <div id="finance-recent-payments" class="finance-mini-list">
+                <p style="margin:0; color:#777;">No recent payments to show yet.</p>
+            </div>
+        </section>
+
+        <section class="section-card" id="client-history-section" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                <div>
+                    <h2 style="margin:0; color:#222;">Client Payment History</h2>
+                    <p style="margin:4px 0 0 0; color:#666; font-size:12px;">View-only history plus payment updates when there is an outstanding balance.</p>
+                </div>
+            </div>
+            <div id="finance-search-results">
+                <p style="margin:0; color:#777;">Search for a client to view payment history.</p>
+            </div>
+        </section>
+    </main>
+
+    <div id="finance-payment-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:1000;">
+        <div style="background:white; margin:10% auto; padding:20px; width:90%; max-width:420px; border-radius:12px; max-height:85vh; overflow-y:auto;">
+            <h3 style="margin-top:0; color:#0A66C2;">Record Payment</h3>
+            <div style="margin-bottom:12px; color:#444; font-size:14px; font-weight:600;" id="fp-client-name"></div>
+            <div style="font-size:12px; color:#666; margin-top:-6px; margin-bottom:12px;" id="fp-reference"></div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div>
+                    <label for="fp-balance" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Current Balance</label>
+                    <input type="number" id="fp-balance" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#0A66C2; font-weight:700;">
+                </div>
+                <div>
+                    <label for="fp-date" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Payment Date</label>
+                    <input type="text" id="fp-date" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#555;">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div>
+                    <label for="fp-amount-now" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Amount Paying Now ($)</label>
+                    <input type="number" id="fp-amount-now" min="0" step="0.01" placeholder="0.00" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label for="fp-tip-now" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Extra Tip ($)</label>
+                    <input type="number" id="fp-tip-now" min="0" step="0.01" placeholder="0.00" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+                <div>
+                    <label for="fp-method" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Payment Method</label>
+                    <select id="fp-method" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                        <option value="Cash" selected>Cash</option>
+                        <option value="Check">Check</option>
+                        <option value="Venmo">Venmo</option>
+                        <option value="CashApp">CashApp</option>
+                        <option value="Card">Card</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="fp-remaining" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Remaining Balance</label>
+                    <input type="number" id="fp-remaining" readonly style="width:100%; padding:12px; background:#f5f5f5; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; color:#555;">
+                </div>
+            </div>
+
+            <div style="margin-bottom:18px;">
+                <label for="fp-notes" style="display:block; font-size:12px; font-weight:600; color:#444; margin-bottom:5px;">Notes</label>
+                <textarea id="fp-notes" placeholder="Optional payment note" style="width:100%; height:68px; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></textarea>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button onclick="submitFinancePayment()" style="flex:2; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;">Save Payment</button>
+                <button onclick="closeFinancePaymentModal()" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav" style="position:fixed; bottom:0; left:0; width:100%; display:flex; justify-content:space-around; background:white; padding:10px 0; border-top:1px solid #ddd; box-shadow:0 -2px 10px rgba(0,0,0,0.05); z-index:900;">
+        <button onclick="location.href='index.html'" style="background:none; border:none; color:#666;">🏠 Home</button>
+        <button onclick="fetchFinanceData()" style="background:none; border:none; color:#666;">🔄 Refresh</button>
+    </nav>
+
+    <script>
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwTTATWLpWkmWkqwP-CNDQG1RgpT4OFx-gsa4HPqJt_UO81_1aghW6dYFqJAVjf0qwC/exec';
+        const AUTH_STORAGE_KEY = 'nuvisionAccessCode';
+        const RECENT_PAYMENT_DAYS = 14;
+
+        let financeRecords = [];
+        let allClients = [];
+        let currentFilter = 'all';
+        let selectedFinanceRecord = null;
+
+        function getAuthKey() {
+            return localStorage.getItem(AUTH_STORAGE_KEY) || '';
+        }
+
+        function buildWebAppUrl() {
+            const authKey = getAuthKey();
+            if (!authKey) {
+                window.location.replace('index.html');
+                return WEB_APP_URL;
+            }
+            const separator = WEB_APP_URL.includes('?') ? '&' : '?';
+            return `${WEB_APP_URL}${separator}authKey=${encodeURIComponent(authKey)}`;
+        }
+
+        function signOutFinance() {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            window.location.replace('index.html');
+        }
+
+        function parseLocalDate(value) {
+            if (!value) return null;
+            if (value instanceof Date && !isNaN(value.getTime())) {
+                return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+            }
+
+            const text = String(value).trim();
+            if (!text) return null;
+
+            let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+
+            match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+            if (match) {
+                let year = Number(match[3]);
+                if (year < 100) year += 2000;
+                return new Date(year, Number(match[1]) - 1, Number(match[2]));
+            }
+
+            const parsed = new Date(text);
+            if (isNaN(parsed.getTime())) return null;
+            return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+        }
+
+        function getLocalDateString(value = new Date()) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (isNaN(date.getTime())) return '';
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function formatDateValue(value) {
+            const parsed = parseLocalDate(value);
+            return parsed ? getLocalDateString(parsed) : '';
+        }
+
+        function formatDisplayDate(value) {
+            const normalized = formatDateValue(value);
+            if (!normalized) return 'No Date';
+            const [year, month, day] = normalized.split('-');
+            return `${month}-${day}-${year}`;
+        }
+
+        function formatMoney(value) {
+            const amount = parseFloat(value);
+            return isNaN(amount) ? '0.00' : amount.toFixed(2);
+        }
+
+        function normalizeStatus(status, balanceDue, amountPaid) {
+            if ((parseFloat(balanceDue) || 0) <= 0) return 'Paid';
+            if ((parseFloat(amountPaid) || 0) > 0) return 'Partial';
+            return status || 'Unpaid';
+        }
+
+        function normalizeRecord(row, index) {
+            const amountOwed = parseFloat(row[5]) || 0;
+            const amountPaid = parseFloat(row[6]) || 0;
+            const balanceDue = !isNaN(parseFloat(row[7])) ? parseFloat(row[7]) : Math.max(amountOwed - amountPaid, 0);
+
+            return {
+                entryId: String(row[0] || `FIN-${index + 1}`),
+                dateCreated: formatDateValue(row[1]),
+                clientName: row[2] || 'Unknown Client',
+                category: row[3] || 'Other',
+                reference: row[4] || 'No reference',
+                amountOwed,
+                amountPaid,
+                balanceDue,
+                status: normalizeStatus(row[8], balanceDue, amountPaid),
+                paymentMethod: row[9] || '',
+                lastPaymentDate: formatDateValue(row[10]),
+                notes: row[11] || '',
+                extraTip: parseFloat(row[12]) || 0
+            };
+        }
+
+        function populateClientDropdown() {
+            const select = document.getElementById('finance-client-select');
+            if (!select) return;
+
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">Select a client</option>';
+
+            allClients
+                .slice()
+                .sort((a, b) => a.localeCompare(b))
+                .forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    select.appendChild(option);
+                });
+
+            if ([...select.options].some(option => option.value === currentValue)) {
+                select.value = currentValue;
+            }
+        }
+
+        function getFilteredOpenRecords() {
+            return financeRecords.filter(record => {
+                const matchesFilter = currentFilter === 'all' || String(record.category || '').trim().toLowerCase() === currentFilter;
+                return matchesFilter && record.balanceDue > 0;
+            });
+        }
+
+        function getRecentPayments() {
+            const today = parseLocalDate(new Date());
+            return financeRecords.filter(record => {
+                if (!record.lastPaymentDate || record.amountPaid <= 0) return false;
+                const paidDate = parseLocalDate(record.lastPaymentDate);
+                if (!paidDate) return false;
+                const diffDays = Math.floor((today - paidDate) / (1000 * 60 * 60 * 24));
+                return diffDays >= 0 && diffDays <= RECENT_PAYMENT_DAYS;
+            }).sort((a, b) => {
+                const dateA = parseLocalDate(a.lastPaymentDate) || new Date(0);
+                const dateB = parseLocalDate(b.lastPaymentDate) || new Date(0);
+                return dateB - dateA;
+            });
+        }
+
+        function renderSummary() {
+            const outstanding = financeRecords.reduce((sum, record) => sum + (record.balanceDue > 0 ? record.balanceDue : 0), 0);
+            const recentTotal = getRecentPayments().reduce((sum, record) => sum + (record.amountPaid || 0) + (record.extraTip || 0), 0);
+            const openCount = financeRecords.filter(record => record.balanceDue > 0).length;
+
+            document.getElementById('finance-outstanding').textContent = `$${formatMoney(outstanding)}`;
+            document.getElementById('finance-recent-total').textContent = `$${formatMoney(recentTotal)}`;
+            document.getElementById('finance-open-count').textContent = String(openCount);
+        }
+
+        function renderOpenBalances() {
+            const container = document.getElementById('finance-open-balances');
+            if (!container) return;
+
+            const records = getFilteredOpenRecords();
+            if (!records.length) {
+                container.innerHTML = '<p style="margin:0; color:#666;">No open balances match this view right now.</p>';
+                return;
+            }
+
+            container.innerHTML = records.map(record => `
+                <div class="section-card" style="margin:0 0 12px 0; padding:14px; border-left:8px solid #ff9800;">
+                    <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700; color:#222;">${record.clientName}</div>
+                            <div style="font-size:12px; color:#666; margin-top:4px;">${record.category} • ${record.reference}</div>
+                            <div style="font-size:12px; color:#666; margin-top:4px;">Created: ${formatDisplayDate(record.dateCreated)}</div>
+                        </div>
+                        <span style="display:inline-block; background:${record.status === 'Partial' ? '#fff3cd' : '#ffe5e5'}; color:${record.status === 'Partial' ? '#8a5b00' : '#b00020'}; padding:5px 9px; border-radius:999px; font-size:11px; font-weight:700;">${record.status}</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:12px;">
+                        <div><div style="font-size:11px; color:#666;">Amount Owed</div><div style="font-weight:700; color:#222;">$${formatMoney(record.amountOwed)}</div></div>
+                        <div><div style="font-size:11px; color:#666;">Paid So Far</div><div style="font-weight:700; color:#2e7d32;">$${formatMoney(record.amountPaid)}</div></div>
+                        <div><div style="font-size:11px; color:#666;">Balance Due</div><div style="font-weight:700; color:#b00020;">$${formatMoney(record.balanceDue)}</div></div>
+                    </div>
+                    <div style="margin-top:8px; font-size:12px; color:#666;">Method: ${record.paymentMethod || 'Not recorded'}${record.extraTip > 0 ? ` • Tips: $${formatMoney(record.extraTip)}` : ''}</div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+                        <button type="button" style="padding:10px 12px; font-size:12px; background:#28a745;" onclick="openFinancePaymentModal('${record.entryId}')">Record Payment</button>
+                        <button type="button" style="padding:10px 12px; font-size:12px; background:#eee; color:#333;" onclick="showClientHistory('${String(record.clientName).replace(/'/g, "\\'")}')">View History</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderRecentPayments() {
+            const container = document.getElementById('finance-recent-payments');
+            if (!container) return;
+
+            const recent = getRecentPayments().slice(0, 6);
+            if (!recent.length) {
+                container.innerHTML = '<p style="margin:0; color:#666;">No payments recorded in the last 14 days.</p>';
+                return;
+            }
+
+            container.innerHTML = recent.map(record => `
+                <div style="padding:10px 0; border-bottom:1px solid #eee;">
+                    <div style="font-weight:700; color:#222;">${record.clientName}</div>
+                    <div style="font-size:12px; color:#666;">${record.category} • ${record.reference}</div>
+                    <div style="font-size:12px; color:#2e7d32; font-weight:700; margin-top:3px;">Paid: $${formatMoney(record.amountPaid)}${record.extraTip > 0 ? ` • Tip: $${formatMoney(record.extraTip)}` : ''}</div>
+                    <div style="font-size:12px; color:#666; margin-top:3px;">${formatDisplayDate(record.lastPaymentDate)} • ${record.paymentMethod || 'Method not set'}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderSearchResults(query = '') {
+            const section = document.getElementById('client-history-section');
+            const container = document.getElementById('finance-search-results');
+            if (!section || !container) return;
+
+            const selectedClient = String(query || '').trim().toLowerCase();
+            if (!selectedClient) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            const matches = financeRecords.filter(record => String(record.clientName || '').trim().toLowerCase() === selectedClient);
+
+            if (!matches.length) {
+                container.innerHTML = '<p style="margin:0; color:#666;">No finance history found for that client.</p>';
+                return;
+            }
+
+            container.innerHTML = matches.map(record => `
+                <div class="section-card" style="margin:0 0 12px 0; padding:14px;">
+                    <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700; color:#222;">${record.clientName}</div>
+                            <div style="font-size:12px; color:#666; margin-top:4px;">${record.category} • ${record.reference}</div>
+                            <div style="font-size:12px; color:#666; margin-top:4px;">Created: ${formatDisplayDate(record.dateCreated)}</div>
+                        </div>
+                        <span style="display:inline-block; background:${record.balanceDue > 0 ? '#fff3cd' : '#e7f6ea'}; color:${record.balanceDue > 0 ? '#8a5b00' : '#2e7d32'}; padding:5px 9px; border-radius:999px; font-size:11px; font-weight:700;">${record.status}</span>
+                    </div>
+                    <div style="margin-top:10px; font-size:13px; color:#333;">Amount Owed: $${formatMoney(record.amountOwed)} • Paid: $${formatMoney(record.amountPaid)} • Balance: $${formatMoney(record.balanceDue)}</div>
+                    <div style="margin-top:5px; font-size:12px; color:#666;">Last Payment: ${record.lastPaymentDate ? formatDisplayDate(record.lastPaymentDate) : 'No payment yet'}${record.paymentMethod ? ` • ${record.paymentMethod}` : ''}${record.extraTip > 0 ? ` • Tips: $${formatMoney(record.extraTip)}` : ''}</div>
+                    ${record.notes ? `<div style="margin-top:5px; font-size:12px; color:#666;">Notes: ${record.notes}</div>` : ''}
+                    ${record.balanceDue > 0 ? `<div style="margin-top:10px;"><button type="button" style="padding:10px 12px; font-size:12px; background:#28a745;" onclick="openFinancePaymentModal('${record.entryId}')">Record Payment</button></div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function showClientHistory(clientName) {
+            const select = document.getElementById('finance-client-select');
+            if (select) {
+                select.value = clientName || '';
+                renderSearchResults(select.value);
+                document.getElementById('client-history-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        async function fetchFinanceData() {
+            const container = document.getElementById('finance-open-balances');
+            if (container) {
+                container.innerHTML = '<p style="margin:0; color:#777;">Loading finance balances...</p>';
+            }
+
+            try {
+                const response = await fetch(buildWebAppUrl());
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        signOutFinance();
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const text = await response.text();
+                if (/unauthorized|forbidden/i.test(text)) {
+                    signOutFinance();
+                    return;
+                }
+
+                const data = JSON.parse(text);
+                const financeRows = data.finance ? data.finance.slice(1) : [];
+                const clientRows = data.clients ? data.clients.slice(1) : [];
+                financeRecords = financeRows.map(normalizeRecord).filter(record => record.clientName || record.reference);
+                allClients = clientRows
+                    .map(row => String(row[1] || '').trim())
+                    .filter(name => name);
+
+                populateClientDropdown();
+                renderSummary();
+                renderOpenBalances();
+                renderRecentPayments();
+                renderSearchResults(document.getElementById('finance-client-select')?.value || '');
+
+                if (!data.finance) {
+                    const openWrap = document.getElementById('finance-open-balances');
+                    if (openWrap) {
+                        openWrap.innerHTML = '<p style="margin:0; color:#666;">Finance sheet data is not being returned by the Apps Script yet. Once that is connected, this page will populate automatically.</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Finance Fetch Error:', error);
+                if (container) {
+                    container.innerHTML = '<p style="margin:0; color:#b00020;">Unable to load finance data right now.</p>';
+                }
+            }
+        }
+
+        function openFinancePaymentModal(entryId) {
+            selectedFinanceRecord = financeRecords.find(record => String(record.entryId) === String(entryId)) || null;
+            if (!selectedFinanceRecord) {
+                alert('That finance entry could not be found.');
+                return;
+            }
+
+            document.getElementById('fp-client-name').textContent = selectedFinanceRecord.clientName;
+            document.getElementById('fp-reference').textContent = `${selectedFinanceRecord.category} • ${selectedFinanceRecord.reference}`;
+            document.getElementById('fp-balance').value = formatMoney(selectedFinanceRecord.balanceDue);
+            document.getElementById('fp-date').value = formatDisplayDate(getLocalDateString());
+            document.getElementById('fp-amount-now').value = formatMoney(selectedFinanceRecord.balanceDue);
+            document.getElementById('fp-tip-now').value = '0.00';
+            document.getElementById('fp-method').value = 'Cash';
+            document.getElementById('fp-notes').value = '';
+            updateRemainingPreview();
+            document.getElementById('finance-payment-modal').style.display = 'block';
+        }
+
+        function closeFinancePaymentModal() {
+            document.getElementById('finance-payment-modal').style.display = 'none';
+        }
+
+        function updateRemainingPreview() {
+            const currentBalance = parseFloat(document.getElementById('fp-balance')?.value || 0) || 0;
+            const payNow = parseFloat(document.getElementById('fp-amount-now')?.value || 0) || 0;
+            const remaining = Math.max(currentBalance - payNow, 0);
+            document.getElementById('fp-remaining').value = formatMoney(remaining);
+        }
+
+        async function submitFinancePayment() {
+            if (!selectedFinanceRecord) return;
+
+            const amountPaidNow = parseFloat(document.getElementById('fp-amount-now')?.value || 0) || 0;
+            if (amountPaidNow <= 0) {
+                alert('Enter a payment amount greater than zero.');
+                return;
+            }
+
+            if (amountPaidNow > selectedFinanceRecord.balanceDue) {
+                alert('The payment amount cannot be more than the current balance due.');
+                return;
+            }
+
+            const extraTipNow = parseFloat(document.getElementById('fp-tip-now')?.value || 0) || 0;
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'recordFinancePayment',
+                        authKey: getAuthKey(),
+                        entryId: selectedFinanceRecord.entryId,
+                        clientName: selectedFinanceRecord.clientName,
+                        amountPaidNow,
+                        extraTipNow,
+                        paidMethod: document.getElementById('fp-method')?.value || 'Cash',
+                        paidDate: getLocalDateString(),
+                        notes: document.getElementById('fp-notes')?.value || ''
+                    })
+                });
+
+                const resultText = await response.text();
+                if (!response.ok || /unknown action|error/i.test(resultText)) {
+                    throw new Error(resultText || `HTTP ${response.status}`);
+                }
+
+                closeFinancePaymentModal();
+                await fetchFinanceData();
+            } catch (error) {
+                console.error('Finance Payment Error:', error);
+                alert(/unknown action/i.test(error.message || '')
+                    ? 'The Finance page is ready, but the Apps Script still needs the finance payment action added and redeployed.'
+                    : 'Unable to save the payment right now.');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('#finance-filters .filter-chip').forEach(button => {
+                button.addEventListener('click', () => {
+                    currentFilter = button.dataset.filter || 'all';
+                    document.querySelectorAll('#finance-filters .filter-chip').forEach(chip => chip.classList.remove('active'));
+                    button.classList.add('active');
+                    renderOpenBalances();
+                });
+            });
+
+            const clientSelect = document.getElementById('finance-client-select');
+            if (clientSelect) {
+                clientSelect.addEventListener('change', event => renderSearchResults(event.target.value));
+            }
+
+            const paymentInput = document.getElementById('fp-amount-now');
+            if (paymentInput) {
+                paymentInput.addEventListener('input', updateRemainingPreview);
+            }
+
+            fetchFinanceData();
+        });
+    </script>
+</body>
+</html>
