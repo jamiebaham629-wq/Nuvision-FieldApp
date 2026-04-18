@@ -6,6 +6,7 @@ let clients = [];
 let masterClients = [];
 let logData = [];
 let scheduleData = [];
+let pendingClientUpdate = null;
 
 function getAuthKey() {
     return localStorage.getItem(AUTH_STORAGE_KEY) || "";
@@ -121,11 +122,21 @@ function formatMoney(value) {
     return isNaN(amount) ? "0.00" : amount.toFixed(2);
 }
 
+function getLogLastCutDate(row) {
+    return formatDateValue(row?.[4] || row?.[6] || row?.[0] || "");
+}
+
+function getLogDurationValue(row) {
+    return String(row?.[3] || row?.[5] || "").trim();
+}
+
 function getLogServiceDisplayDate(row) {
-    return formatDisplayDate(row?.[6] || row?.[0] || "");
+    return formatDisplayDate(getLogLastCutDate(row) || row?.[0] || "");
 }
 
 function isUnpaidLogRow(row) {
+    if (!Array.isArray(row) || row.length <= 5) return false;
+
     const serviceType = String(row?.[2] || "").trim().toLowerCase();
     const method = String(row?.[4] || "").trim().toLowerCase();
     const paymentStatus = String(row?.[8] || "").trim().toLowerCase();
@@ -142,8 +153,8 @@ function getClientUnpaidJobs(clientName) {
     return logData
         .filter(row => String(row?.[1] || "").trim().toLowerCase() === targetName && isUnpaidLogRow(row))
         .sort((a, b) => {
-            const dateA = parseLocalDate(a?.[6] || a?.[0]) || new Date(0);
-            const dateB = parseLocalDate(b?.[6] || b?.[0]) || new Date(0);
+            const dateA = parseLocalDate(getLogLastCutDate(a) || a?.[0]) || new Date(0);
+            const dateB = parseLocalDate(getLogLastCutDate(b) || b?.[0]) || new Date(0);
             return dateB - dateA;
         });
 }
@@ -242,7 +253,10 @@ function handleClientSelectionChange() {
         if (phoneInput) phoneInput.value = "";
         if (emailInput) emailInput.value = "";
         if (freqInput) freqInput.value = "14";
-        if (lastCutInput) lastCutInput.value = "";
+        if (lastCutInput) {
+            lastCutInput.value = "";
+            lastCutInput.dataset.originalValue = "";
+        }
         if (priceInput) priceInput.value = "";
         return;
     }
@@ -260,7 +274,10 @@ function handleClientSelectionChange() {
         if (phoneInput) phoneInput.value = "";
         if (emailInput) emailInput.value = "";
         if (freqInput) freqInput.value = "";
-        if (lastCutInput) lastCutInput.value = "";
+        if (lastCutInput) {
+            lastCutInput.value = "";
+            lastCutInput.dataset.originalValue = "";
+        }
         if (priceInput) priceInput.value = "";
         return;
     }
@@ -274,7 +291,11 @@ function handleClientSelectionChange() {
     if (phoneInput) phoneInput.value = client.phone || "";
     if (emailInput) emailInput.value = client.email || "";
     if (freqInput) freqInput.value = client.frequency || "7";
-    if (lastCutInput) lastCutInput.value = client.lastCut && client.lastCut !== "No Date" ? formatDateValue(client.lastCut) : "";
+    if (lastCutInput) {
+        const originalLastCut = client.lastCut && client.lastCut !== "No Date" ? formatDateValue(client.lastCut) : "";
+        lastCutInput.value = originalLastCut;
+        lastCutInput.dataset.originalValue = originalLastCut;
+    }
     if (priceInput) priceInput.value = client.price || "";
 }
 
@@ -631,7 +652,7 @@ async function fetchLogData(selectedDate) {
     daySummary.innerHTML = '<p style="padding: 20px;">Loading jobs for this date...</p>';
 
     try {
-        const jobsForDate = logData.filter(job => formatDateValue(job[0]) === selectedDate);
+        const jobsForDate = logData.filter(job => getLogLastCutDate(job) === selectedDate);
 
         if (!jobsForDate.length) {
             daySummary.innerHTML = '<p style="padding: 20px; color: #666;">No jobs completed on this date.</p>';
@@ -642,7 +663,8 @@ async function fetchLogData(selectedDate) {
             <h3 style="margin-top:0;">Jobs on ${selectedDate}</h3>
             <div style="background: white; padding: 15px; border-radius: 8px;">
                 ${jobsForDate.map((job, index) => {
-                    const durationText = job[5] ? ` • Duration: ${job[5]}hr` : "";
+                    const durationValue = getLogDurationValue(job);
+                    const durationText = durationValue ? ` • Duration: ${durationValue}hr` : "";
                     return `
                     <div style="padding: 12px; border-bottom: ${index === jobsForDate.length - 1 ? "none" : "1px solid #eee"};">
                         <div style="font-weight: bold; color: #0A66C2;">${job[1] || "Unknown Client"}</div>
@@ -768,6 +790,44 @@ function updateCheckOffTotal() {
     }
 }
 
+function openLastCutConfirmModal() {
+    const modal = document.getElementById("lastcut-confirm-modal");
+    if (modal) modal.style.display = "block";
+}
+
+async function finalizeClientSave(payload, form, openCheckOffAfterSave = false) {
+    try {
+        await postToWebApp(payload);
+        if (typeof closeClientModal === "function") closeClientModal();
+        if (form) form.reset();
+        await fetchSheetData();
+
+        if (openCheckOffAfterSave) {
+            openCheckOffModal(
+                payload.clientId || "",
+                payload.clientName || "",
+                payload.clientPrice || 0,
+                payload.clientLastCut || getLocalDateString()
+            );
+        }
+    } catch (error) {
+        console.error("Client Save Error:", error);
+        alert(`Unable to save client changes right now. ${error.message || ""}`.trim());
+    }
+}
+
+async function handleLastCutDecision(decision) {
+    const pending = pendingClientUpdate;
+    pendingClientUpdate = null;
+
+    if (typeof closeLastCutConfirmModal === "function") closeLastCutConfirmModal();
+    if (!pending || decision === "cancel") return;
+
+    await finalizeClientSave(pending.payload, pending.form, decision === "newCut");
+}
+
+window.handleLastCutDecision = handleLastCutDecision;
+
 function getCheckOffTimingDetails() {
     const startTime = document.getElementById("co-start")?.value || "";
     const endTime = document.getElementById("co-end")?.value || "";
@@ -788,11 +848,12 @@ function getCheckOffTimingDetails() {
     };
 }
 
-function openCheckOffModal(clientId, clientName, price) {
+function openCheckOffModal(clientId, clientName, price, selectedDate = getLocalDateString()) {
     const modal = document.getElementById("checkoff-modal");
     if (!modal) return;
 
     const numericPrice = parseFloat(price || 0) || 0;
+    const normalizedDate = formatDateValue(selectedDate) || getLocalDateString();
 
     modal.dataset.clientId = clientId;
     modal.dataset.clientName = clientName;
@@ -800,7 +861,7 @@ function openCheckOffModal(clientId, clientName, price) {
     document.getElementById("co-base-price").value = numericPrice.toFixed(2);
     document.getElementById("co-extra-tip").value = "0.00";
     document.getElementById("co-total").value = numericPrice.toFixed(2);
-    document.getElementById("co-date-display").value = formatDisplayDate(getLocalDateString());
+    document.getElementById("co-date-display").value = normalizedDate;
     document.getElementById("co-method").value = "Pay later";
     document.getElementById("co-start").value = "";
     document.getElementById("co-end").value = "";
@@ -814,6 +875,8 @@ async function submitCheckOff() {
     const timing = getCheckOffTimingDetails();
     if (!timing) return;
 
+    const selectedServiceDate = formatDateValue(document.getElementById("co-date-display")?.value || "") || getLocalDateString();
+
     const payload = {
         action: "checkOffJob",
         clientId: modal.dataset.clientId || "",
@@ -825,7 +888,9 @@ async function submitCheckOff() {
         serviceType: "Lawn Care",
         hasTiming: timing.hasTiming,
         duration: timing.duration,
-        date: getLocalDateString()
+        date: selectedServiceDate,
+        serviceDate: selectedServiceDate,
+        lastCutDate: selectedServiceDate
     };
 
     try {
@@ -851,7 +916,7 @@ function openPaymentModal(clientId, clientName) {
     modal.dataset.clientId = clientId || "";
     modal.dataset.clientName = clientName || "";
     modal.dataset.loggedAt = String(summary.latest[0] || "");
-    modal.dataset.serviceDate = formatDateValue(summary.latest[6] || summary.latest[0] || "");
+    modal.dataset.serviceDate = getLogLastCutDate(summary.latest) || formatDateValue(summary.latest[0] || "");
     modal.dataset.amount = String(parseFloat(summary.latest[3] || 0) || 0);
 
     document.getElementById("pay-client-name").textContent = clientName || "";
@@ -913,6 +978,9 @@ async function submitNewClient(event) {
     const selection = document.getElementById("nc-client-select")?.value || "";
     const isNewClient = selection === "__new__";
     const existingClient = getMasterClientByKey(selection);
+    const lastCutInput = document.getElementById("nc-lastcut");
+    const normalizedLastCut = formatDateValue(lastCutInput?.value || "");
+    const originalLastCut = String(lastCutInput?.dataset.originalValue || "");
     const clientName = isNewClient
         ? document.getElementById("nc-name").value.trim()
         : (existingClient?.name || "");
@@ -928,21 +996,19 @@ async function submitNewClient(event) {
         clientName,
         clientAddress: document.getElementById("nc-address").value.trim(),
         clientFrequency: document.getElementById("nc-freq").value || "7",
-        clientLastCut: document.getElementById("nc-lastcut").value || "",
+        clientLastCut: normalizedLastCut,
         clientPrice: document.getElementById("nc-price").value || "0",
         clientPhone: document.getElementById("nc-phone").value.trim(),
         clientEmail: document.getElementById("nc-email").value.trim()
     };
 
-    try {
-        await postToWebApp(payload);
-        if (typeof closeClientModal === "function") closeClientModal();
-        event.target.reset();
-        await fetchSheetData();
-    } catch (error) {
-        console.error("Client Save Error:", error);
-        alert(`Unable to save client changes right now. ${error.message || ""}`.trim());
+    if (!isNewClient && existingClient && normalizedLastCut !== originalLastCut) {
+        pendingClientUpdate = { payload, form: event.target };
+        openLastCutConfirmModal();
+        return;
     }
+
+    await finalizeClientSave(payload, event.target, false);
 }
 
 function showCalendarView() {

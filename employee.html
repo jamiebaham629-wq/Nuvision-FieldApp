@@ -273,6 +273,10 @@
                     </div>
                 </div>
                 <div class="earnings-summary">
+                    <div class="earnings-label">Hourly Rate:</div>
+                    <div class="earnings-amount" id="hourly-rate-preview">$0.00/hr</div>
+                </div>
+                <div class="earnings-summary">
                     <div class="earnings-label">Total Hours (Decimal): <span id="total-hours-decimal" style="font-weight: bold; color: #0A66C2;">0.00</span></div>
                 </div>
                 <div class="earnings-summary">
@@ -402,7 +406,6 @@
                     <div class="employee-card" onclick="openAddHoursModal('${emp.id}', '${safeName}', ${emp.hourlyRate})">
                         <div class="employee-header">
                             <div class="employee-name">${emp.name}</div>
-                            <div class="hourly-rate">$${emp.hourlyRate.toFixed(2)}/hr</div>
                         </div>
                         <div class="employee-stats">
                             <div class="stat-box">
@@ -412,6 +415,14 @@
                             <div class="stat-box">
                                 <div class="stat-label">Today's Earnings</div>
                                 <div class="stat-value">$${emp.todayEarnings.toFixed(2)}</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Weekly Hours</div>
+                                <div class="stat-value">${emp.weeklyHours.toFixed(2)}h</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Weekly Pay Total</div>
+                                <div class="stat-value">$${emp.weeklyEarnings.toFixed(2)}</div>
                             </div>
                         </div>
                     </div>
@@ -435,11 +446,13 @@
             // Initialize hours and minutes
             document.getElementById('hours-input').value = '0';
             document.getElementById('minutes-input').value = '0';
+            document.getElementById('hourly-rate-preview').textContent = '$' + hourlyRate.toFixed(2) + '/hr';
         }
 
         function closeModal() {
             document.getElementById('add-hours-modal').style.display = 'none';
             document.getElementById('hours-form').reset();
+            document.getElementById('hourly-rate-preview').textContent = '$0.00/hr';
             document.getElementById('total-hours-decimal').textContent = '0.00';
             document.getElementById('earnings-preview').textContent = '$0.00';
             selectedEmployee = null;

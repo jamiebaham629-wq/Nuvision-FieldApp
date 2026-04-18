@@ -101,7 +101,7 @@
                             <option value="Interior Remodel" selected>Interior Remodel</option>
                             <option value="Repair & Restore">Repair & Restore</option>
                             <option value="Wash & Cleanup">Wash & Cleanup</option>
-                            <option value="Other (No Progress Bar)">Other (No Progress Bar)</option>
+                            <option value="Other">Other</option>
                         </select>
                     </div>
                     <div>
@@ -258,7 +258,7 @@
             const matchedKey = Object.keys(milestoneTemplates).find(key => normalizeProjectType(key) === normalizedType);
             const milestones = matchedKey ? milestoneTemplates[matchedKey] : [];
 
-            if (projectType === 'Other (No Progress Bar)') {
+            if (projectType === 'Other' || projectType === 'Other (No Progress Bar)') {
                 milestoneSelect.innerHTML = '<option value="">No preset milestones</option>';
                 milestoneSelect.disabled = true;
                 if (helpText) helpText.textContent = 'This project type does not use a preset milestone progress bar.';
