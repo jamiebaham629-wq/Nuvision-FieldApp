@@ -75,6 +75,12 @@
             <div id="finance-recent-payments" class="finance-mini-list">
                 <p style="margin:0; color:#777;">No recent payments to show yet.</p>
             </div>
+
+            <div style="margin-top:12px; text-align:center;">
+                <button id="finance-deposit-toggle" type="button" onclick="toggleDepositReviewPanel()" style="padding:8px 12px; font-size:12px; background:#f3f6fa; color:#0A66C2; border:1px solid #cfe0f4; border-radius:999px; font-weight:700;">Bank Deposits</button>
+            </div>
+
+            <div id="finance-deposit-review-panel" style="display:none; margin-top:12px; padding:12px; border:1px solid #e6eef8; border-radius:12px; background:#fafcff;"></div>
         </section>
 
         <section class="section-card" id="client-history-section" style="display:none;">
@@ -156,11 +162,13 @@
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwTTATWLpWkmWkqwP-CNDQG1RgpT4OFx-gsa4HPqJt_UO81_1aghW6dYFqJAVjf0qwC/exec';
         const AUTH_STORAGE_KEY = 'nuvisionAccessCode';
         const RECENT_PAYMENT_DAYS = 14;
+        const LOCAL_DEPOSIT_STORAGE_KEY = 'nuvisionFinanceDepositState';
 
         let financeRecords = [];
         let allClients = [];
         let currentFilter = 'all';
         let selectedFinanceRecord = null;
+        let isDepositPanelOpen = false;
 
         function getAuthKey() {
             return localStorage.getItem(AUTH_STORAGE_KEY) || '';
@@ -231,6 +239,42 @@
             return isNaN(amount) ? '0.00' : amount.toFixed(2);
         }
 
+        function getStoredDepositState() {
+            try {
+                return JSON.parse(localStorage.getItem(LOCAL_DEPOSIT_STORAGE_KEY) || '{}') || {};
+            } catch (error) {
+                console.warn('Unable to read local deposit state:', error);
+                return {};
+            }
+        }
+
+        function mergeStoredDepositState(entryId, values) {
+            const current = getStoredDepositState();
+            current[String(entryId)] = { ...(current[String(entryId)] || {}), ...values };
+            localStorage.setItem(LOCAL_DEPOSIT_STORAGE_KEY, JSON.stringify(current));
+        }
+
+        function normalizeDepositStatus(status, paymentMethod, amountPaid) {
+            const normalized = String(status || '').trim();
+            if (normalized) return normalized;
+
+            const method = String(paymentMethod || '').trim().toLowerCase();
+            if ((parseFloat(amountPaid) || 0) <= 0) return '';
+            if (['card'].includes(method)) return 'Not Needed';
+            return 'Pending';
+        }
+
+        function getDepositBadgeColors(status) {
+            const normalized = String(status || '').trim().toLowerCase();
+            if (normalized === 'deposited') return { bg: '#e7f6ea', color: '#2e7d32' };
+            if (normalized === 'not needed') return { bg: '#eef2f6', color: '#4f5b66' };
+            return { bg: '#fff3cd', color: '#8a5b00' };
+        }
+
+        function getEntryToken(entryId) {
+            return String(entryId || '').replace(/[^a-z0-9_-]/gi, '_');
+        }
+
         function normalizeStatus(status, balanceDue, amountPaid) {
             if ((parseFloat(balanceDue) || 0) <= 0) return 'Paid';
             if ((parseFloat(amountPaid) || 0) > 0) return 'Partial';
@@ -241,9 +285,11 @@
             const amountOwed = parseFloat(row[5]) || 0;
             const amountPaid = parseFloat(row[6]) || 0;
             const balanceDue = !isNaN(parseFloat(row[7])) ? parseFloat(row[7]) : Math.max(amountOwed - amountPaid, 0);
+            const entryId = String(row[0] || `FIN-${index + 1}`);
+            const localDepositState = getStoredDepositState()[entryId] || {};
 
             return {
-                entryId: String(row[0] || `FIN-${index + 1}`),
+                entryId,
                 dateCreated: formatDateValue(row[1]),
                 clientName: row[2] || 'Unknown Client',
                 category: row[3] || 'Other',
@@ -255,7 +301,10 @@
                 paymentMethod: row[9] || '',
                 lastPaymentDate: formatDateValue(row[10]),
                 notes: row[11] || '',
-                extraTip: parseFloat(row[12]) || 0
+                extraTip: parseFloat(row[12]) || 0,
+                depositStatus: normalizeDepositStatus(localDepositState.depositStatus || row[13] || '', row[9] || '', amountPaid),
+                depositDate: formatDateValue(localDepositState.depositDate || row[14] || ''),
+                checkDepositType: localDepositState.checkDepositType || row[15] || ''
             };
         }
 
@@ -354,17 +403,152 @@
             const recent = getRecentPayments().slice(0, 6);
             if (!recent.length) {
                 container.innerHTML = '<p style="margin:0; color:#666;">No payments recorded in the last 14 days.</p>';
+                renderDepositReviewPanel();
                 return;
             }
 
-            container.innerHTML = recent.map(record => `
-                <div style="padding:10px 0; border-bottom:1px solid #eee;">
-                    <div style="font-weight:700; color:#222;">${record.clientName}</div>
-                    <div style="font-size:12px; color:#666;">${record.category} • ${record.reference}</div>
-                    <div style="font-size:12px; color:#2e7d32; font-weight:700; margin-top:3px;">Paid: $${formatMoney(record.amountPaid)}${record.extraTip > 0 ? ` • Tip: $${formatMoney(record.extraTip)}` : ''}</div>
-                    <div style="font-size:12px; color:#666; margin-top:3px;">${formatDisplayDate(record.lastPaymentDate)} • ${record.paymentMethod || 'Method not set'}</div>
-                </div>
-            `).join('');
+            container.innerHTML = recent.map(record => {
+                const badge = getDepositBadgeColors(record.depositStatus);
+                return `
+                    <div style="padding:10px 0; border-bottom:1px solid #eee;">
+                        <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+                            <div style="font-weight:700; color:#222;">${record.clientName}</div>
+                            <span style="display:inline-block; background:${badge.bg}; color:${badge.color}; padding:4px 8px; border-radius:999px; font-size:11px; font-weight:700;">${record.depositStatus || 'Pending'}</span>
+                        </div>
+                        <div style="font-size:12px; color:#666; margin-top:3px;">${record.category} • ${record.reference}</div>
+                        <div style="font-size:12px; color:#2e7d32; font-weight:700; margin-top:3px;">Paid: $${formatMoney(record.amountPaid)}${record.extraTip > 0 ? ` • Tip: $${formatMoney(record.extraTip)}` : ''}</div>
+                        <div style="font-size:12px; color:#666; margin-top:3px;">${formatDisplayDate(record.lastPaymentDate)} • ${record.paymentMethod || 'Method not set'}</div>
+                    </div>
+                `;
+            }).join('');
+
+            renderDepositReviewPanel();
+        }
+
+        function getPendingDepositPayments() {
+            return getRecentPayments().filter(record => {
+                const status = String(record.depositStatus || '').trim().toLowerCase();
+                return record.amountPaid > 0 && status !== 'deposited' && status !== 'not needed';
+            });
+        }
+
+        function toggleDepositReviewPanel() {
+            isDepositPanelOpen = !isDepositPanelOpen;
+            renderDepositReviewPanel();
+        }
+
+        async function handleDepositToggle(entryId) {
+            const record = financeRecords.find(item => String(item.entryId) === String(entryId));
+            if (!record) return;
+
+            const token = getEntryToken(entryId);
+            const checkbox = document.getElementById(`deposit-check-${token}`);
+            const dateInput = document.getElementById(`deposit-date-${token}`);
+            const typeSelect = document.getElementById(`deposit-type-${token}`);
+            const isCheckPayment = String(record.paymentMethod || '').trim().toLowerCase() === 'check';
+            const isDeposited = Boolean(checkbox?.checked);
+            const depositDate = isDeposited ? (dateInput?.value || getLocalDateString()) : '';
+            const checkDepositType = isDeposited ? (typeSelect?.value || '') : '';
+
+            if (isDeposited && isCheckPayment && !checkDepositType) {
+                alert('Please choose Electronic or In Person for check deposits.');
+                if (checkbox) checkbox.checked = false;
+                return;
+            }
+
+            const depositStatus = isDeposited ? 'Deposited' : 'Pending';
+            mergeStoredDepositState(entryId, { depositStatus, depositDate, checkDepositType });
+
+            financeRecords = financeRecords.map(item => String(item.entryId) === String(entryId)
+                ? { ...item, depositStatus, depositDate, checkDepositType }
+                : item);
+
+            renderRecentPayments();
+            renderSearchResults(document.getElementById('finance-client-select')?.value || '');
+
+            try {
+                const response = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'updateFinanceDepositStatus',
+                        authKey: getAuthKey(),
+                        entryId,
+                        depositStatus,
+                        depositDate,
+                        checkDepositType
+                    })
+                });
+
+                const resultText = await response.text();
+                if (!response.ok || /unknown action|error/i.test(resultText)) {
+                    throw new Error(resultText || `HTTP ${response.status}`);
+                }
+
+                await fetchFinanceData();
+            } catch (error) {
+                console.error('Deposit Update Error:', error);
+            }
+        }
+
+        function renderDepositReviewPanel() {
+            const container = document.getElementById('finance-deposit-review-panel');
+            const toggleButton = document.getElementById('finance-deposit-toggle');
+            if (!container || !toggleButton) return;
+
+            const pending = getPendingDepositPayments();
+            toggleButton.textContent = isDepositPanelOpen
+                ? `Hide Bank Deposits (${pending.length})`
+                : `Bank Deposits (${pending.length})`;
+
+            container.style.display = isDepositPanelOpen ? 'block' : 'none';
+            if (!isDepositPanelOpen) return;
+
+            if (!pending.length) {
+                container.innerHTML = '<p style="margin:0; color:#2e7d32; font-size:12px; font-weight:600;">All recent payments are already marked as deposited.</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div style="font-size:12px; color:#666; margin-bottom:10px;">Only recent payments still waiting on a bank deposit check mark appear here.</div>
+                ${pending.map(record => {
+                    const token = getEntryToken(record.entryId);
+                    const isCheckPayment = String(record.paymentMethod || '').trim().toLowerCase() === 'check';
+                    const selectedType = String(record.checkDepositType || '');
+                    const dateValue = record.depositDate || getLocalDateString();
+
+                    return `
+                        <div style="padding:12px; border:1px solid #e9eef5; border-radius:10px; background:white; margin-bottom:10px;">
+                            <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+                                <div>
+                                    <div style="font-weight:700; color:#222;">${record.clientName}</div>
+                                    <div style="font-size:12px; color:#666; margin-top:4px;">${formatDisplayDate(record.lastPaymentDate)} • ${record.paymentMethod || 'Method not set'}</div>
+                                </div>
+                                <div style="font-size:12px; font-weight:700; color:#2e7d32;">$${formatMoney(record.amountPaid)}</div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-top:10px; align-items:end;">
+                                <label style="display:flex; gap:8px; align-items:center; font-size:12px; font-weight:700; color:#333;">
+                                    <input type="checkbox" id="deposit-check-${token}" onchange="handleDepositToggle('${String(record.entryId).replace(/'/g, "\\'")}')">
+                                    Deposited
+                                </label>
+                                <div>
+                                    <label for="deposit-date-${token}" style="display:block; font-size:11px; color:#555; margin-bottom:4px;">Deposit Date</label>
+                                    <input type="date" id="deposit-date-${token}" value="${dateValue}" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                                </div>
+                                ${isCheckPayment ? `
+                                    <div>
+                                        <label for="deposit-type-${token}" style="display:block; font-size:11px; color:#555; margin-bottom:4px;">Check Deposit</label>
+                                        <select id="deposit-type-${token}" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">
+                                            <option value="">Select</option>
+                                            <option value="Electronic" ${selectedType === 'Electronic' ? 'selected' : ''}>Electronic</option>
+                                            <option value="In Person" ${selectedType === 'In Person' ? 'selected' : ''}>In Person</option>
+                                        </select>
+                                    </div>
+                                ` : '<div></div>'}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            `;
         }
 
         function renderSearchResults(query = '') {
@@ -447,6 +631,7 @@
                 renderSummary();
                 renderOpenBalances();
                 renderRecentPayments();
+                renderDepositReviewPanel();
                 renderSearchResults(document.getElementById('finance-client-select')?.value || '');
 
                 if (!data.finance) {
