@@ -5,8 +5,10 @@ const AUTH_STORAGE_KEY = "nuvisionAccessCode";
 let clients = [];
 let masterClients = [];
 let logData = [];
+let logHeaders = [];
 let scheduleData = [];
 let pendingClientUpdate = null;
+let pendingCutTimerAction = null;
 
 function getAuthKey() {
     return localStorage.getItem(AUTH_STORAGE_KEY) || "";
@@ -122,39 +124,143 @@ function formatMoney(value) {
     return isNaN(amount) ? "0.00" : amount.toFixed(2);
 }
 
+function parseDateTime(value) {
+    if (!value) return null;
+    if (value instanceof Date && !isNaN(value.getTime())) return value;
+
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeHeaderName(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function getLogColumnIndex(...aliases) {
+    const normalizedAliases = aliases.map(normalizeHeaderName).filter(Boolean);
+    if (!normalizedAliases.length || !logHeaders.length) return -1;
+
+    for (let i = 0; i < logHeaders.length; i++) {
+        if (normalizedAliases.includes(normalizeHeaderName(logHeaders[i]))) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+function getLogCell(row, aliases = [], fallbackIndices = []) {
+    const idx = getLogColumnIndex(...aliases);
+    if (idx > -1 && idx < row.length) return row[idx];
+
+    for (const fallback of fallbackIndices) {
+        if (fallback >= 0 && fallback < row.length && row[fallback] !== undefined) {
+            return row[fallback];
+        }
+    }
+
+    return "";
+}
+
 function getLogLastCutDate(row) {
-    return formatDateValue(row?.[4] || row?.[6] || row?.[0] || "");
+    return formatDateValue(getLogCell(row, ["Last_Cut_Date", "Last Cut Date", "Service Date"], [4, 6, 0]) || "");
 }
 
 function getLogDurationValue(row) {
-    return String(row?.[3] || row?.[5] || "").trim();
+    return String(getLogCell(row, ["Duration"], [5, 3]) || "").trim();
+}
+
+function getLogStartTimeValue(row) {
+    return getLogCell(row, ["Start Time"], []);
+}
+
+function getLogTimeStatusValue(row) {
+    return String(getLogCell(row, ["Time Status", "Status"], [6]) || "").trim();
+}
+
+function getLogClientName(row) {
+    return String(getLogCell(row, ["Client", "Client Name"], [1]) || "").trim();
+}
+
+function getLogServiceType(row) {
+    return String(getLogCell(row, ["Service", "Service Type"], [2]) || "").trim();
+}
+
+function getLogPaymentMethod(row) {
+    return String(getLogCell(row, ["Payment Method", "Method"], [4]) || "").trim();
+}
+
+function getLogPaymentStatus(row) {
+    return String(getLogCell(row, ["Payment Status"], [8]) || "").trim();
+}
+
+function getLogAmountValue(row) {
+    const value = parseFloat(getLogCell(row, ["Amount", "Price"], [3]) || 0);
+    return isNaN(value) ? 0 : value;
+}
+
+function getLogTimestampValue(row) {
+    return getLogCell(row, ["Timestamp"], [0]);
 }
 
 function getLogServiceDisplayDate(row) {
-    return formatDisplayDate(getLogLastCutDate(row) || row?.[0] || "");
+    return formatDisplayDate(getLogLastCutDate(row) || getLogTimestampValue(row) || "");
 }
 
 function isUnpaidLogRow(row) {
     if (!Array.isArray(row) || row.length <= 5) return false;
 
-    const serviceType = String(row?.[2] || "").trim().toLowerCase();
-    const method = String(row?.[4] || "").trim().toLowerCase();
-    const paymentStatus = String(row?.[8] || "").trim().toLowerCase();
+    const serviceType = getLogServiceType(row).toLowerCase();
+    const method = getLogPaymentMethod(row).toLowerCase();
+    const paymentStatus = getLogPaymentStatus(row).toLowerCase();
 
     if (serviceType && serviceType !== "lawn care") return false;
+    if (paymentStatus === "in progress") return false;
     if (paymentStatus === "paid") return false;
     if (paymentStatus === "unpaid") return true;
     return method === "pay later";
+}
+
+function getLatestLawnLogRow(clientName) {
+    const targetName = String(clientName || "").trim().toLowerCase();
+    if (!targetName) return null;
+
+    const matching = logData.filter(row => {
+        const rowClient = getLogClientName(row).toLowerCase();
+        const rowService = getLogServiceType(row).toLowerCase();
+        return rowClient === targetName && (!rowService || rowService === "lawn care");
+    });
+
+    if (!matching.length) return null;
+
+    return matching.sort((a, b) => {
+        const startA = parseDateTime(getLogStartTimeValue(a));
+        const startB = parseDateTime(getLogStartTimeValue(b));
+        const stampA = parseDateTime(getLogTimestampValue(a));
+        const stampB = parseDateTime(getLogTimestampValue(b));
+        const dateA = startA || stampA || new Date(0);
+        const dateB = startB || stampB || new Date(0);
+        return dateB - dateA;
+    })[0];
+}
+
+function getActiveCutRow(clientName) {
+    const latest = getLatestLawnLogRow(clientName);
+    if (!latest) return null;
+
+    const hasStart = Boolean(parseDateTime(getLogStartTimeValue(latest)));
+    const status = getLogTimeStatusValue(latest).toLowerCase();
+    return hasStart && status === "in progress" ? latest : null;
 }
 
 function getClientUnpaidJobs(clientName) {
     const targetName = String(clientName || "").trim().toLowerCase();
 
     return logData
-        .filter(row => String(row?.[1] || "").trim().toLowerCase() === targetName && isUnpaidLogRow(row))
+        .filter(row => getLogClientName(row).toLowerCase() === targetName && isUnpaidLogRow(row))
         .sort((a, b) => {
-            const dateA = parseLocalDate(getLogLastCutDate(a) || a?.[0]) || new Date(0);
-            const dateB = parseLocalDate(getLogLastCutDate(b) || b?.[0]) || new Date(0);
+            const dateA = parseLocalDate(getLogLastCutDate(a) || getLogTimestampValue(a)) || new Date(0);
+            const dateB = parseLocalDate(getLogLastCutDate(b) || getLogTimestampValue(b)) || new Date(0);
             return dateB - dateA;
         });
 }
@@ -165,7 +271,7 @@ function getClientPaymentSummary(clientName) {
     return {
         unpaidJobs,
         count: unpaidJobs.length,
-        totalDue: unpaidJobs.reduce((sum, row) => sum + (parseFloat(row?.[3]) || 0), 0),
+        totalDue: unpaidJobs.reduce((sum, row) => sum + getLogAmountValue(row), 0),
         latest: unpaidJobs[0] || null
     };
 }
@@ -458,6 +564,7 @@ async function fetchSheetData() {
                 };
             });
 
+        logHeaders = Array.isArray(data.log) && data.log.length ? data.log[0] : [];
         logData = data.log ? data.log.slice(1) : [];
         scheduleData = data.schedule ? data.schedule.slice(1) : [];
 
@@ -490,17 +597,51 @@ function renderClients() {
     const listContainer = document.getElementById("lawn-list");
     if (!listContainer) return;
 
-    const purple = clients.filter(c => getStatus(c.lastCut, c.frequency) === "new");
-    let red = clients.filter(c => getStatus(c.lastCut, c.frequency) === "red");
-    let yellow = clients.filter(c => getStatus(c.lastCut, c.frequency) === "yellow");
-    const green = clients.filter(c => getStatus(c.lastCut, c.frequency) === "green");
+    const activeCutRowsByClient = new Map();
+    clients.forEach(client => {
+        const key = String(client?.name || "").trim().toLowerCase();
+        if (!key) return;
+
+        const activeRow = getActiveCutRow(client.name);
+        if (activeRow) activeCutRowsByClient.set(key, activeRow);
+    });
+
+    const inProgress = clients.filter(client => {
+        const key = String(client?.name || "").trim().toLowerCase();
+        return activeCutRowsByClient.has(key);
+    });
+
+    const remainingClients = clients.filter(client => {
+        const key = String(client?.name || "").trim().toLowerCase();
+        return !activeCutRowsByClient.has(key);
+    });
+
+    const purple = remainingClients.filter(c => getStatus(c.lastCut, c.frequency) === "new");
+    let red = remainingClients.filter(c => getStatus(c.lastCut, c.frequency) === "red");
+    let yellow = remainingClients.filter(c => getStatus(c.lastCut, c.frequency) === "yellow");
+    let green = remainingClients.filter(c => getStatus(c.lastCut, c.frequency) === "green");
+
+    inProgress.sort((a, b) => {
+        const keyA = String(a?.name || "").trim().toLowerCase();
+        const keyB = String(b?.name || "").trim().toLowerCase();
+        const rowA = activeCutRowsByClient.get(keyA);
+        const rowB = activeCutRowsByClient.get(keyB);
+        const startA = parseDateTime(getLogStartTimeValue(rowA)) || parseDateTime(getLogTimestampValue(rowA)) || new Date(0);
+        const startB = parseDateTime(getLogStartTimeValue(rowB)) || parseDateTime(getLogTimestampValue(rowB)) || new Date(0);
+        return startB - startA;
+    });
 
     red.sort((a, b) => getDaysFromDue(b.lastCut, b.frequency) - getDaysFromDue(a.lastCut, a.frequency));
     yellow.sort((a, b) => Math.abs(getDaysFromDue(a.lastCut, a.frequency)) - Math.abs(getDaysFromDue(b.lastCut, b.frequency)));
+    green.sort((a, b) => {
+        const dateA = parseLocalDate(a.lastCut) || new Date(0);
+        const dateB = parseLocalDate(b.lastCut) || new Date(0);
+        return dateB - dateA;
+    });
 
     const showYellow = localStorage.getItem("showYellow") === "1" || localStorage.getItem("showUpcoming") === "1";
     const showGreen = localStorage.getItem("showGreen") === "1";
-    const displayList = red.concat(purple, showYellow ? yellow : [], showGreen ? green : []);
+    const displayList = inProgress.concat(red, purple, showYellow ? yellow : [], showGreen ? green : []);
 
     let html = `
         <div style="padding:10px; display:flex; gap:10px;">
@@ -514,6 +655,9 @@ function renderClients() {
 
     html += displayList.map(client => {
         const status = getStatus(client.lastCut, client.frequency);
+        const clientKey = String(client?.name || "").trim().toLowerCase();
+        const activeCut = activeCutRowsByClient.get(clientKey) || null;
+        const isCutActive = Boolean(activeCut);
         const safeName = escapeName(client.name);
         const paymentSummary = getClientPaymentSummary(client.name);
         const info = status === "new" ? "New Setup" : `Last Cut: ${formatDisplayDate(client.lastCut)}`;
@@ -534,7 +678,7 @@ function renderClients() {
         }
 
         return `
-            <div class="client-row ${status}">
+            <div class="client-row ${isCutActive ? "timing-active" : status}">
                 <div class="client-card-layout">
                     <div class="client-info-block">
                         <div class="client-name-line">
@@ -548,6 +692,7 @@ function renderClients() {
                     <div class="client-actions">
                         <button class="client-action-btn secondary" onclick="openScheduleModal('${client.id}', '${safeName}')">Schedule</button>
                         ${paymentSummary.count ? `<button class="client-action-btn warning" onclick="openPaymentModal('${client.id}', '${safeName}')">Record Payment</button>` : ""}
+                        <button class="client-action-btn ${isCutActive ? "warning" : "secondary"}" onclick="promptCutTime('${client.id}', '${safeName}', ${isCutActive})">${isCutActive ? "End Time" : "Start Time"}</button>
                         <button class="client-action-btn primary" onclick="openCheckOffModal('${client.id}', '${safeName}', '${client.price || 0}')">Check Off</button>
                     </div>
                 </div>
@@ -781,6 +926,16 @@ function calculateDuration(startTime, endTime) {
     return (totalMinutes / 60).toFixed(2);
 }
 
+function calculateDurationFromDateTimes(startValue, endValue) {
+    const startDate = parseDateTime(startValue);
+    const endDate = parseDateTime(endValue);
+    if (!startDate || !endDate) return "";
+
+    const diffMs = endDate.getTime() - startDate.getTime();
+    if (diffMs < 0) return "";
+    return (diffMs / (1000 * 60 * 60)).toFixed(2);
+}
+
 function updateCheckOffTotal() {
     const basePrice = parseFloat(document.getElementById("co-base-price")?.value || 0) || 0;
     const extraTip = parseFloat(document.getElementById("co-extra-tip")?.value || 0) || 0;
@@ -828,23 +983,82 @@ async function handleLastCutDecision(decision) {
 
 window.handleLastCutDecision = handleLastCutDecision;
 
-function getCheckOffTimingDetails() {
-    const startTime = document.getElementById("co-start")?.value || "";
-    const endTime = document.getElementById("co-end")?.value || "";
-    const hasStart = Boolean(startTime);
-    const hasEnd = Boolean(endTime);
+function openCutTimeConfirmModal(clientName, actionLabel) {
+    const modal = document.getElementById("cut-time-confirm-modal");
+    if (!modal) return;
 
-    if (hasStart !== hasEnd) {
-        alert("Enter both the start and finish time, or leave both blank.");
-        return null;
+    const message = document.getElementById("cut-time-confirm-message");
+    const confirmButton = document.getElementById("cut-time-confirm-btn");
+
+    if (message) {
+        message.textContent = `Record ${actionLabel} Cut Time for: ${clientName}`;
+    }
+    if (confirmButton) {
+        confirmButton.textContent = actionLabel;
     }
 
-    const hasTiming = hasStart && hasEnd;
+    modal.style.display = "block";
+}
+
+function closeCutTimeConfirmModal() {
+    const modal = document.getElementById("cut-time-confirm-modal");
+    if (modal) modal.style.display = "none";
+}
+
+function promptCutTime(clientId, clientName, isEnding = false) {
+    pendingCutTimerAction = {
+        clientId: String(clientId || ""),
+        clientName: String(clientName || ""),
+        isEnding: Boolean(isEnding)
+    };
+
+    openCutTimeConfirmModal(clientName, isEnding ? "End Time" : "Start Time");
+}
+
+async function handleCutTimeDecision(decision) {
+    const pending = pendingCutTimerAction;
+    pendingCutTimerAction = null;
+    closeCutTimeConfirmModal();
+
+    if (!pending || decision === "cancel") return;
+
+    const action = pending.isEnding ? "endLawnCut" : "startLawnCut";
+    const isEnding = pending.isEnding;
+
+    try {
+        await postToWebApp({
+            action,
+            clientId: pending.clientId,
+            clientName: pending.clientName,
+            serviceType: "Lawn Care"
+        });
+
+        await fetchSheetData();
+
+        // Auto-open Check Off modal after End Time is confirmed
+        if (isEnding) {
+            const client = clients.find(c => c.id === pending.clientId || c.name === pending.clientName);
+            if (client) {
+                openCheckOffModal(pending.clientId, pending.clientName, client.price);
+            }
+        }
+    } catch (error) {
+        console.error("Cut Timing Error:", error);
+        alert("Unable to record cut time right now.");
+    }
+}
+
+window.handleCutTimeDecision = handleCutTimeDecision;
+
+function getCheckOffTimingDetails() {
+    const startTimestamp = document.getElementById("co-start-ts")?.value || "";
+    const duration = String(document.getElementById("co-duration")?.value || "").trim();
+
+    const hasTiming = Boolean(duration) || Boolean(startTimestamp);
     return {
-        startTime,
-        endTime,
+        startTimestamp,
         hasTiming,
-        duration: hasTiming ? calculateDuration(startTime, endTime) : ""
+        duration: hasTiming ? duration : ""
     };
 }
 
@@ -854,6 +1068,10 @@ function openCheckOffModal(clientId, clientName, price, selectedDate = getLocalD
 
     const numericPrice = parseFloat(price || 0) || 0;
     const normalizedDate = formatDateValue(selectedDate) || getLocalDateString();
+    const latestRow = getLatestLawnLogRow(clientName);
+    const latestStart = latestRow ? getLogStartTimeValue(latestRow) : "";
+    const cutDate = latestRow ? getLogLastCutDate(latestRow) : "";
+    const duration = latestRow ? getLogDurationValue(latestRow) : "";
 
     modal.dataset.clientId = clientId;
     modal.dataset.clientName = clientName;
@@ -861,10 +1079,10 @@ function openCheckOffModal(clientId, clientName, price, selectedDate = getLocalD
     document.getElementById("co-base-price").value = numericPrice.toFixed(2);
     document.getElementById("co-extra-tip").value = "0.00";
     document.getElementById("co-total").value = numericPrice.toFixed(2);
-    document.getElementById("co-date-display").value = normalizedDate;
+    document.getElementById("co-date-display").value = cutDate || normalizedDate;
     document.getElementById("co-method").value = "Pay later";
-    document.getElementById("co-start").value = "";
-    document.getElementById("co-end").value = "";
+    document.getElementById("co-start-ts").value = latestStart ? String(latestStart) : "";
+    document.getElementById("co-duration").value = duration ? String(duration) : "";
     modal.style.display = "block";
 }
 
@@ -888,18 +1106,22 @@ async function submitCheckOff() {
         serviceType: "Lawn Care",
         hasTiming: timing.hasTiming,
         duration: timing.duration,
+        startTimestamp: timing.startTimestamp,
         date: selectedServiceDate,
         serviceDate: selectedServiceDate,
         lastCutDate: selectedServiceDate
     };
 
     try {
-        await postToWebApp(payload);
+        const result = await postToWebApp(payload);
+        if (result && typeof result === "object" && result.success === false) {
+            throw new Error(result.message || "Check Off did not update Lawn Care.");
+        }
         if (typeof closeCheckOffModal === "function") closeCheckOffModal();
         await fetchSheetData();
     } catch (error) {
         console.error("Check-off Error:", error);
-        alert("Unable to complete this job right now.");
+        alert(error.message || "Unable to complete this job right now.");
     }
 }
 
@@ -915,14 +1137,14 @@ function openPaymentModal(clientId, clientName) {
 
     modal.dataset.clientId = clientId || "";
     modal.dataset.clientName = clientName || "";
-    modal.dataset.loggedAt = String(summary.latest[0] || "");
-    modal.dataset.serviceDate = getLogLastCutDate(summary.latest) || formatDateValue(summary.latest[0] || "");
-    modal.dataset.amount = String(parseFloat(summary.latest[3] || 0) || 0);
+    modal.dataset.loggedAt = String(getLogTimestampValue(summary.latest) || "");
+    modal.dataset.serviceDate = getLogLastCutDate(summary.latest) || formatDateValue(getLogTimestampValue(summary.latest) || "");
+    modal.dataset.amount = String(getLogAmountValue(summary.latest) || 0);
 
     document.getElementById("pay-client-name").textContent = clientName || "";
     document.getElementById("pay-service-date").value = getLogServiceDisplayDate(summary.latest);
     document.getElementById("pay-date").value = formatDisplayDate(getLocalDateString());
-    document.getElementById("pay-amount-due").value = formatMoney(summary.latest[3] || 0);
+    document.getElementById("pay-amount-due").value = formatMoney(getLogAmountValue(summary.latest));
     document.getElementById("pay-method").value = "Cash";
 
     const note = document.getElementById("pay-summary-note");
