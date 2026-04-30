@@ -127,6 +127,13 @@ body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neu
 .client-row.yellow { border-left-color: var(--status-yellow); }
 .client-row.red { border-left-color: var(--status-red); }
 .client-row.new {border-left-color: #800080; /* Purple */}
+.client-row.timing-active {
+    border-left-color: var(--status-yellow);
+    background: #ffe98a;
+    border-top: 1px solid #e2c200;
+    border-right: 1px solid #e2c200;
+    border-bottom: 1px solid #e2c200;
+}
 
 button {
     background-color: var(--nuvision-blue);

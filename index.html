@@ -122,14 +122,15 @@
                 <p style="margin:0 0 15px 0; font-size:14px; color:#111; font-weight:600;">Service Type: <span style="font-weight:400; color:#111;">Lawn Care</span></p>
                 <div style="background: #f0f7ff; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
                     <p style="font-weight: bold; margin-bottom: 5px; font-size: 14px;">⏱ Job Duration</p>
-                    <div style="display: flex; gap: 10px;">
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px;">Start</label>
-                            <input type="time" id="co-start" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                    <div style="display: grid; gap: 8px;">
+                        <div>
+                            <label for="co-duration" style="font-size: 11px;">Duration (hours)</label>
+                            <input type="text" id="co-duration" readonly style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; background:#f5f5f5;">
                         </div>
-                        <div style="flex: 1;">
-                            <label style="font-size: 11px;">End</label>
-                            <input type="time" id="co-end" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        <div style="font-size:11px; color:#666;">Start and End timestamps come from the Start Time / End Time buttons on the client card.</div>
+                        <div style="display:none;">
+                            <input type="text" id="co-start-ts">
+                            <input type="text" id="co-end-ts">
                         </div>
                     </div>
                 </div>
@@ -154,6 +155,7 @@
                      <option value="Cash">Cash</option>
                      <option value="Check">Check</option>
                      <option value="Venmo">Venmo</option>
+                     <option value="Zelle">Zelle</option>
                      <option value="CashApp">CashApp</option>
                 </select>
                 <div style="display:flex; gap:10px;">
@@ -190,6 +192,7 @@
                         <option value="Cash" selected>Cash</option>
                         <option value="Check">Check</option>
                         <option value="Venmo">Venmo</option>
+                        <option value="Zelle">Zelle</option>
                         <option value="CashApp">CashApp</option>
                         <option value="Paid">Paid</option>
                     </select>
@@ -273,6 +276,17 @@
                 </div>
             </div>
         </div>
+
+        <div id="cut-time-confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1002;">
+            <div style="background:white; margin:22% auto; padding:20px; width:90%; max-width:420px; border-radius:12px;">
+                <h3 style="margin-top:0; color:#0A66C2;">Lawn Cut Timer</h3>
+                <p id="cut-time-confirm-message" style="font-size:14px; color:#333; line-height:1.5; margin-bottom:18px;">Record cut time?</p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <button id="cut-time-confirm-btn" type="button" onclick="handleCutTimeDecision('confirm')" style="padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;">Start Time</button>
+                    <button type="button" onclick="handleCutTimeDecision('cancel')" style="padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <nav class="bottom-nav" style="position: fixed; bottom: 0; width: 100%; display: none; justify-content: space-around; background: white; padding: 10px 0; border-top: 1px solid #ddd; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);">
@@ -299,6 +313,7 @@
         function closeScheduleLookupModal() { document.getElementById('schedule-lookup-modal').style.display = 'none'; }
         function closeCheckOffModal() { document.getElementById('checkoff-modal').style.display = 'none'; }
         function closeLastCutConfirmModal() { document.getElementById('lastcut-confirm-modal').style.display = 'none'; }
+        function closeCutTimeConfirmModal() { document.getElementById('cut-time-confirm-modal').style.display = 'none'; }
         function closeClientModal() {
             document.getElementById('add-client-modal').style.display = 'none';
             const form = document.getElementById('new-client-form');

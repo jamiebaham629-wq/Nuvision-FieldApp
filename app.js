@@ -1282,6 +1282,22 @@ function openScheduleLookupModal() {
     displayScheduleLookup(input?.value || getLocalDateString());
 }
 
+// Ensure dynamic inline handlers in rendered cards always resolve on window.
+Object.assign(window, {
+    toggleYellow,
+    toggleGreen,
+    openScheduleModal,
+    openPaymentModal,
+    closePaymentModal,
+    promptCutTime,
+    openCheckOffModal,
+    submitCheckOff,
+    submitPaymentUpdate,
+    openClientEditorModal,
+    openScheduleLookupModal,
+    fetchLogData
+});
+
 document.addEventListener("DOMContentLoaded", () => {
     const loginForm = document.getElementById("login-form");
     if (loginForm) loginForm.addEventListener("submit", submitLogin);
