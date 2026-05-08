@@ -68,7 +68,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
                 <div>
                     <h2 style="margin:0; color:#222;">Recent Payments</h2>
-                    <p style="margin:4px 0 0 0; color:#666; font-size:12px;">Quick view only for payments recorded in the last 2 weeks.</p>
+                    <p style="margin:4px 0 0 0; color:#666; font-size:12px;">Quick view for every payment recorded in the last 7 days.</p>
                 </div>
             </div>
 
@@ -81,6 +81,12 @@
             </div>
 
             <div id="finance-deposit-review-panel" style="display:none; margin-top:12px; padding:12px; border:1px solid #e6eef8; border-radius:12px; background:#fafcff;"></div>
+
+            <div style="margin-top:12px; text-align:center;">
+                <button id="finance-previous-week-toggle" type="button" onclick="togglePreviousWeekPaymentsPanel()" style="padding:8px 12px; font-size:12px; background:#f3f6fa; color:#0A66C2; border:1px solid #cfe0f4; border-radius:999px; font-weight:700;">Previous Week Payments</button>
+            </div>
+
+            <div id="finance-previous-week-panel" style="display:none; margin-top:12px; padding:12px; border:1px solid #e6eef8; border-radius:12px; background:#fafcff;"></div>
         </section>
 
         <section class="section-card" id="client-history-section" style="display:none;">
@@ -131,6 +137,7 @@
                         <option value="Cash" selected>Cash</option>
                         <option value="Check">Check</option>
                         <option value="Venmo">Venmo</option>
+                        <option value="Zelle">Zelle</option>
                         <option value="CashApp">CashApp</option>
                         <option value="Card">Card</option>
                     </select>
@@ -161,7 +168,7 @@
     <script>
         const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwTTATWLpWkmWkqwP-CNDQG1RgpT4OFx-gsa4HPqJt_UO81_1aghW6dYFqJAVjf0qwC/exec';
         const AUTH_STORAGE_KEY = 'nuvisionAccessCode';
-        const RECENT_PAYMENT_DAYS = 14;
+        const RECENT_PAYMENT_DAYS = 7;
         const LOCAL_DEPOSIT_STORAGE_KEY = 'nuvisionFinanceDepositState';
 
         let financeRecords = [];
@@ -169,6 +176,7 @@
         let currentFilter = 'all';
         let selectedFinanceRecord = null;
         let isDepositPanelOpen = false;
+        let isPreviousWeekPanelOpen = false;
 
         function getAuthKey() {
             return localStorage.getItem(AUTH_STORAGE_KEY) || '';
@@ -264,6 +272,33 @@
             return 'Pending';
         }
 
+        function isPendingDepositRecord(record) {
+            const status = String(record?.depositStatus || '').trim().toLowerCase();
+            return status === 'pending' || (!status && String(record?.paymentMethod || '').trim());
+        }
+
+        function getRecordServiceDate(record) {
+            const reference = String(record?.reference || '');
+            const match = reference.match(/(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2,4})/);
+            return parseLocalDate(match ? match[1] : record?.dateCreated);
+        }
+
+        function getPreviousWeekRange(baseDate = new Date()) {
+            const today = parseLocalDate(baseDate);
+            if (!today) return { start: null, end: null };
+
+            const currentWeekSunday = new Date(today);
+            currentWeekSunday.setDate(today.getDate() - today.getDay());
+
+            const previousWeekSunday = new Date(currentWeekSunday);
+            previousWeekSunday.setDate(currentWeekSunday.getDate() - 7);
+
+            const previousWeekSaturday = new Date(currentWeekSunday);
+            previousWeekSaturday.setDate(currentWeekSunday.getDate() - 1);
+
+            return { start: previousWeekSunday, end: previousWeekSaturday };
+        }
+
         function getDepositBadgeColors(status) {
             const normalized = String(status || '').trim().toLowerCase();
             if (normalized === 'deposited') return { bg: '#e7f6ea', color: '#2e7d32' };
@@ -339,16 +374,48 @@
 
         function getRecentPayments() {
             const today = parseLocalDate(new Date());
+
             return financeRecords.filter(record => {
                 if (!record.lastPaymentDate || record.amountPaid <= 0) return false;
+
                 const paidDate = parseLocalDate(record.lastPaymentDate);
                 if (!paidDate) return false;
+
                 const diffDays = Math.floor((today - paidDate) / (1000 * 60 * 60 * 24));
                 return diffDays >= 0 && diffDays <= RECENT_PAYMENT_DAYS;
             }).sort((a, b) => {
                 const dateA = parseLocalDate(a.lastPaymentDate) || new Date(0);
                 const dateB = parseLocalDate(b.lastPaymentDate) || new Date(0);
+                const pendingA = isPendingDepositRecord(a);
+                const pendingB = isPendingDepositRecord(b);
+
+                if (pendingA && !pendingB) return -1;
+                if (!pendingA && pendingB) return 1;
+
                 return dateB - dateA;
+            });
+        }
+
+        function getPreviousWeekPayments() {
+            const { start, end } = getPreviousWeekRange();
+            if (!start || !end) return [];
+
+            return financeRecords.filter(record => {
+                if (record.amountPaid <= 0) return false;
+                if (String(record.category || '').trim().toLowerCase() !== 'lawn care') return false;
+
+                const serviceDate = getRecordServiceDate(record);
+                if (!serviceDate) return false;
+
+                return serviceDate >= start && serviceDate <= end;
+            }).sort((a, b) => {
+                const serviceDateA = getRecordServiceDate(a) || new Date(0);
+                const serviceDateB = getRecordServiceDate(b) || new Date(0);
+                if (serviceDateB - serviceDateA !== 0) return serviceDateB - serviceDateA;
+
+                const paymentDateA = parseLocalDate(a.lastPaymentDate) || new Date(0);
+                const paymentDateB = parseLocalDate(b.lastPaymentDate) || new Date(0);
+                return paymentDateB - paymentDateA;
             });
         }
 
@@ -400,10 +467,11 @@
             const container = document.getElementById('finance-recent-payments');
             if (!container) return;
 
-            const recent = getRecentPayments().slice(0, 6);
+            const recent = getRecentPayments();
             if (!recent.length) {
-                container.innerHTML = '<p style="margin:0; color:#666;">No payments recorded in the last 14 days.</p>';
+                container.innerHTML = '<p style="margin:0; color:#666;">No recent payments to show right now.</p>';
                 renderDepositReviewPanel();
+                renderPreviousWeekPaymentsPanel();
                 return;
             }
 
@@ -423,18 +491,21 @@
             }).join('');
 
             renderDepositReviewPanel();
+            renderPreviousWeekPaymentsPanel();
         }
 
         function getPendingDepositPayments() {
-            return getRecentPayments().filter(record => {
-                const status = String(record.depositStatus || '').trim().toLowerCase();
-                return record.amountPaid > 0 && status !== 'deposited' && status !== 'not needed';
-            });
+            return getRecentPayments().filter(record => record.amountPaid > 0 && isPendingDepositRecord(record));
         }
 
         function toggleDepositReviewPanel() {
             isDepositPanelOpen = !isDepositPanelOpen;
             renderDepositReviewPanel();
+        }
+
+        function togglePreviousWeekPaymentsPanel() {
+            isPreviousWeekPanelOpen = !isPreviousWeekPanelOpen;
+            renderPreviousWeekPaymentsPanel();
         }
 
         async function handleDepositToggle(entryId) {
@@ -545,6 +616,53 @@
                                     </div>
                                 ` : '<div></div>'}
                             </div>
+                        </div>
+                    `;
+                }).join('')}
+            `;
+        }
+
+        function renderPreviousWeekPaymentsPanel() {
+            const container = document.getElementById('finance-previous-week-panel');
+            const toggleButton = document.getElementById('finance-previous-week-toggle');
+            if (!container || !toggleButton) return;
+
+            const previousWeekPayments = getPreviousWeekPayments();
+            const { start, end } = getPreviousWeekRange();
+            const rangeLabel = start && end
+                ? `${formatDisplayDate(start)} to ${formatDisplayDate(end)}`
+                : 'previous week';
+
+            toggleButton.textContent = isPreviousWeekPanelOpen
+                ? `Hide Previous Week Payments (${previousWeekPayments.length})`
+                : `Previous Week Payments (${previousWeekPayments.length})`;
+
+            container.style.display = isPreviousWeekPanelOpen ? 'block' : 'none';
+            if (!isPreviousWeekPanelOpen) return;
+
+            if (!previousWeekPayments.length) {
+                container.innerHTML = `<p style="margin:0; color:#666; font-size:12px;">No paid lawn services found for ${rangeLabel}.</p>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div style="font-size:12px; color:#666; margin-bottom:10px;">Payments for lawn cuts dated ${rangeLabel}, ordered by last cut date.</div>
+                ${previousWeekPayments.map(record => {
+                    const serviceDate = getRecordServiceDate(record);
+                    const badge = getDepositBadgeColors(record.depositStatus);
+
+                    return `
+                        <div style="padding:12px; border:1px solid #e9eef5; border-radius:10px; background:white; margin-bottom:10px;">
+                            <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:flex-start;">
+                                <div>
+                                    <div style="font-weight:700; color:#222;">${record.clientName}</div>
+                                    <div style="font-size:12px; color:#666; margin-top:4px;">Cut Date: ${formatDisplayDate(serviceDate)}${record.lastPaymentDate ? ` • Paid: ${formatDisplayDate(record.lastPaymentDate)}` : ''}</div>
+                                    <div style="font-size:12px; color:#666; margin-top:4px;">${record.reference}</div>
+                                </div>
+                                <span style="display:inline-block; background:${badge.bg}; color:${badge.color}; padding:4px 8px; border-radius:999px; font-size:11px; font-weight:700;">${record.depositStatus || 'Pending'}</span>
+                            </div>
+                            <div style="font-size:12px; color:#2e7d32; font-weight:700; margin-top:8px;">Paid: $${formatMoney(record.amountPaid)}${record.extraTip > 0 ? ` • Tip: $${formatMoney(record.extraTip)}` : ''}</div>
+                            <div style="font-size:12px; color:#666; margin-top:4px;">${record.paymentMethod || 'Method not set'}</div>
                         </div>
                     `;
                 }).join('')}

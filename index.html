@@ -68,10 +68,56 @@
         </section>
 
         <section id="calendar-view" style="display: none; padding: 20px;">
-            <h2>Work History</h2>
-            <input type="date" id="calendar-picker" style="padding: 12px; width: 100%; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px;">
-            <div id="day-summary" style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
-                <p>Select a date to see completed jobs.</p>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+                <h2 style="margin:0;">Work History</h2>
+                <button type="button" id="calendar-today-btn" style="background:#eef4fb; color:#0A66C2; border:1px solid #d3e2f3; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700;">Today</button>
+            </div>
+
+            <div style="background:#f8fbff; border:1px solid #dbe8f8; border-radius:10px; padding:12px; margin-bottom:12px;">
+                <div style="font-size:12px; font-weight:700; color:#0A66C2; margin-bottom:8px;">Schedule Client From Calendar</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <div>
+                        <label for="calendar-schedule-client" style="display:block; font-size:11px; color:#444; font-weight:600; margin-bottom:4px;">Client</label>
+                        <select id="calendar-schedule-client" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box;">
+                            <option value="">Select client</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="calendar-schedule-date" style="display:block; font-size:11px; color:#444; font-weight:600; margin-bottom:4px;">Date</label>
+                        <input type="date" id="calendar-schedule-date" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box;">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <div>
+                        <label for="calendar-schedule-service" style="display:block; font-size:11px; color:#444; font-weight:600; margin-bottom:4px;">Service</label>
+                        <select id="calendar-schedule-service" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box;">
+                            <option value="Lawn Care" selected>Lawn Care</option>
+                            <option value="Renovation">Renovation</option>
+                            <option value="Pressure Washing">Pressure Washing</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; align-items:flex-end;">
+                        <button type="button" id="calendar-schedule-submit" style="width:100%; padding:10px; font-size:13px;">Save Schedule</button>
+                    </div>
+                </div>
+                <input type="text" id="calendar-schedule-notes" placeholder="Optional notes" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; box-sizing:border-box;">
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                <span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#555; font-weight:700;"><span style="width:10px; height:10px; border-radius:999px; background:#eef4fb; border:1px solid #d3e2f3;"></span>Completed</span>
+                <span style="display:inline-flex; align-items:center; gap:6px; font-size:11px; color:#555; font-weight:700;"><span style="width:10px; height:10px; border-radius:999px; background:#fff3cd; border:1px solid #ffe08a;"></span>Scheduled</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns:48px 1fr 48px; gap:8px; align-items:center; margin-bottom:12px;">
+                <button type="button" id="calendar-prev-btn" style="padding:8px;">&#8592;</button>
+                <div id="calendar-month-label" style="text-align:center; font-weight:700; color:#0A66C2;">Month</div>
+                <button type="button" id="calendar-next-btn" style="padding:8px;">&#8594;</button>
+            </div>
+
+            <div id="calendar-grid" class="calendar-grid-wrap"></div>
+
+            <div id="day-summary" style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-top:14px;">
+                <p>Select a day to see client names.</p>
             </div>
         </section>
 

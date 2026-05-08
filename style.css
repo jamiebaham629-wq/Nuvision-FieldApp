@@ -292,3 +292,88 @@ input[type="date"] {
 .finance-mini-list > div:last-child {
     border-bottom: none !important;
 }
+
+.calendar-grid-wrap {
+    background: #fff;
+    border: 1px solid #e3e8ef;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.calendar-weekdays,
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-weekday {
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #5d6b7b;
+    border-bottom: 1px solid #e9edf3;
+    background: #f8fbff;
+}
+
+.calendar-day {
+    min-height: 88px;
+    padding: 6px;
+    border-right: 1px solid #eef2f6;
+    border-bottom: 1px solid #eef2f6;
+    cursor: pointer;
+    background: #fff;
+}
+
+.calendar-day:nth-child(7n) {
+    border-right: none;
+}
+
+.calendar-day.muted {
+    background: #fafbfd;
+    color: #a0acb9;
+}
+
+.calendar-day.today {
+    background: #f0f7ff;
+}
+
+.calendar-day-number {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2f3b48;
+    margin-bottom: 4px;
+}
+
+.calendar-day.muted .calendar-day-number {
+    color: #9aa6b4;
+}
+
+.calendar-name-chip {
+    display: block;
+    width: 100%;
+    border-radius: 999px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+}
+
+.calendar-name-chip.done {
+    background: #eef4fb;
+    color: #0A66C2;
+}
+
+.calendar-name-chip.scheduled {
+    background: #fff3cd;
+    color: #8a5b00;
+}
+
+.calendar-name-more {
+    font-size: 10px;
+    color: #6b7785;
+    font-weight: 700;
+}

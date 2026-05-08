@@ -9,6 +9,7 @@ let logHeaders = [];
 let scheduleData = [];
 let pendingClientUpdate = null;
 let pendingCutTimerAction = null;
+let calendarCursorDate = parseLocalDate(new Date()) || new Date();
 
 function getAuthKey() {
     return localStorage.getItem(AUTH_STORAGE_KEY) || "";
@@ -332,6 +333,43 @@ function populateClientEditorOptions() {
     }
 }
 
+function getCalendarClientOptions() {
+    const source = masterClients.length ? masterClients : clients;
+    const uniqueByName = new Map();
+
+    source.forEach(client => {
+        const name = String(client?.name || "").trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (!uniqueByName.has(key)) {
+            uniqueByName.set(key, {
+                id: String(client?.id || ""),
+                name
+            });
+        }
+    });
+
+    return [...uniqueByName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function populateCalendarScheduleClients() {
+    const select = document.getElementById("calendar-schedule-client");
+    if (!select) return;
+
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Select client</option>';
+
+    getCalendarClientOptions().forEach(client => {
+        const option = new Option(client.name, client.id || client.name);
+        option.dataset.clientName = client.name;
+        select.appendChild(option);
+    });
+
+    if ([...select.options].some(option => option.value === currentValue)) {
+        select.value = currentValue;
+    }
+}
+
 function handleClientSelectionChange() {
     const select = document.getElementById("nc-client-select");
     const idInput = document.getElementById("nc-client-id");
@@ -536,6 +574,7 @@ async function fetchSheetData() {
             });
 
         populateClientEditorOptions();
+        populateCalendarScheduleClients();
 
         const sourceRows = lawnRows.length ? lawnRows : clientRows;
 
@@ -790,37 +829,311 @@ function displayScheduleLookup(selectedDate) {
     `;
 }
 
-async function fetchLogData(selectedDate) {
+function isLawnCareLogRow(row) {
+    const serviceType = getLogServiceType(row).toLowerCase();
+    return !serviceType || serviceType === "lawn care";
+}
+
+function getCalendarClientMapFromLog() {
+    const map = new Map();
+
+    logData.forEach(row => {
+        if (!Array.isArray(row) || !row.length || !isLawnCareLogRow(row)) return;
+
+        const dateKey = getLogLastCutDate(row);
+        const clientName = getLogClientName(row);
+        if (!dateKey || !clientName) return;
+
+        if (!map.has(dateKey)) map.set(dateKey, []);
+        map.get(dateKey).push(clientName);
+    });
+
+    map.forEach((names, dateKey) => {
+        const unique = [...new Set(names.map(name => String(name || "").trim()).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+        map.set(dateKey, unique);
+    });
+
+    return map;
+}
+
+function getCalendarClientMapFromSchedule() {
+    const map = new Map();
+
+    scheduleData.forEach(row => {
+        if (!Array.isArray(row) || !row.length) return;
+
+        const dateKey = formatDateValue(row[2]);
+        const clientName = String(row[1] || "").trim();
+        if (!dateKey || !clientName) return;
+
+        if (!map.has(dateKey)) map.set(dateKey, []);
+        map.get(dateKey).push(clientName);
+    });
+
+    map.forEach((names, dateKey) => {
+        const unique = [...new Set(names.map(name => String(name || "").trim()).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+        map.set(dateKey, unique);
+    });
+
+    return map;
+}
+
+function getMonthStartDate(value = new Date()) {
+    const date = parseLocalDate(value) || parseLocalDate(new Date()) || new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function renderCalendarDaySummary(selectedDate, completedClientMap = null, scheduledClientMap = null) {
     const daySummary = document.getElementById("day-summary");
     if (!daySummary) return;
 
-    daySummary.innerHTML = '<p style="padding: 20px;">Loading jobs for this date...</p>';
+    const dateKey = formatDateValue(selectedDate);
+    if (!dateKey) {
+        daySummary.innerHTML = '<p style="margin:0; color:#666;">Select a day to see client names.</p>';
+        return;
+    }
 
-    try {
-        const jobsForDate = logData.filter(job => getLogLastCutDate(job) === selectedDate);
+    const completedMap = completedClientMap || getCalendarClientMapFromLog();
+    const scheduleMap = scheduledClientMap || getCalendarClientMapFromSchedule();
+    const completedNames = completedMap.get(dateKey) || [];
+    // Only show scheduled clients for today or future dates
+    const todayKey = getLocalDateString();
+    const rawScheduledNames = scheduleMap.get(dateKey) || [];
+    const scheduledNames = dateKey >= todayKey ? rawScheduledNames : [];
 
-        if (!jobsForDate.length) {
-            daySummary.innerHTML = '<p style="padding: 20px; color: #666;">No jobs completed on this date.</p>';
-            return;
-        }
+    // Build scheduled details with clientId for action buttons
+    const scheduledDetails = scheduledNames.map(name => {
+        const row = scheduleData.find(r => Array.isArray(r) && String(r[1] || "").trim() === name && formatDateValue(r[2]) === dateKey);
+        return {
+            clientId: row ? String(row[0] || "") : "",
+            clientName: name,
+            serviceDate: dateKey,
+            serviceType: row ? String(row[3] || "") : "Lawn Care",
+            notes: row ? String(row[4] || "") : ""
+        };
+    });
 
-        daySummary.innerHTML = `
-            <h3 style="margin-top:0;">Jobs on ${selectedDate}</h3>
-            <div style="background: white; padding: 15px; border-radius: 8px;">
-                ${jobsForDate.map((job, index) => {
-                    const durationValue = getLogDurationValue(job);
-                    const durationText = durationValue ? ` • Duration: ${durationValue}hr` : "";
-                    return `
-                    <div style="padding: 12px; border-bottom: ${index === jobsForDate.length - 1 ? "none" : "1px solid #eee"};">
-                        <div style="font-weight: bold; color: #0A66C2;">${job[1] || "Unknown Client"}</div>
-                        <div style="font-size: 12px; color: #666;">Service: ${job[2] || "Lawn Care"}${durationText}</div>
+    if (!completedNames.length && !scheduledNames.length) {
+        const label = dateKey >= todayKey ? "completed or scheduled" : "completed";
+        daySummary.innerHTML = `<p style="margin:0; color:#666;">No ${label} lawn clients on ${dateKey}.</p>`;
+        return;
+    }
+
+    daySummary.innerHTML = `
+        <div style="font-size:12px; color:#666; margin-bottom:8px; font-weight:700;">${(completedNames.length + scheduledNames.length)} client event${(completedNames.length + scheduledNames.length) === 1 ? "" : "s"} on ${dateKey}</div>
+        ${scheduledDetails.length ? `
+            <div style="font-size:11px; color:#8a5b00; font-weight:700; margin:0 0 6px 0;">Scheduled</div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+                ${scheduledDetails.map((item, idx) => `
+                    <div style="background:#fff9e8; border:1px solid #ffe08a; border-radius:8px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                        <span style="font-weight:700; color:#8a5b00; flex:1;">${item.clientName}</span>
+                        <button type="button" class="cal-edit-btn" data-idx="${idx}" style="background:#fff; border:1px solid #ffe08a; border-radius:6px; padding:4px 8px; font-size:12px; color:#8a5b00; cursor:pointer;" title="Edit schedule">&#9998;</button>
+                        <button type="button" class="cal-delete-btn" data-idx="${idx}" style="background:#fff; border:1px solid #ffb3b3; border-radius:6px; padding:4px 8px; font-size:12px; color:#c0392b; cursor:pointer;" title="Delete schedule">&#10005;</button>
                     </div>
-                `;}).join("")}
+                `).join("")}
+            </div>
+        ` : ""}
+        ${completedNames.length ? `
+            <div style="font-size:11px; color:#0A66C2; font-weight:700; margin:0 0 6px 0;">Completed</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                ${completedNames.map(name => `<div style="background:#fff; border:1px solid #e8edf3; border-radius:8px; padding:8px 10px; font-weight:700; color:#0A66C2;">${name}</div>`).join("")}
+            </div>
+        ` : ""}
+    `;
+
+    // Attach edit/delete button listeners
+    daySummary.querySelectorAll(".cal-edit-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const item = scheduledDetails[parseInt(btn.dataset.idx, 10)];
+            if (item) editCalendarSchedule(item);
+        });
+    });
+    daySummary.querySelectorAll(".cal-delete-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const item = scheduledDetails[parseInt(btn.dataset.idx, 10)];
+            if (item) deleteCalendarSchedule(item);
+        });
+    });
+}
+
+function renderWorkHistoryCalendar(monthDate = calendarCursorDate) {
+    const monthLabel = document.getElementById("calendar-month-label");
+    const grid = document.getElementById("calendar-grid");
+    if (!monthLabel || !grid) return;
+
+    const monthStart = getMonthStartDate(monthDate);
+    calendarCursorDate = monthStart;
+
+    const year = monthStart.getFullYear();
+    const month = monthStart.getMonth();
+    const firstDayOfWeek = monthStart.getDay();
+    const startDate = new Date(year, month, 1 - firstDayOfWeek);
+    const todayKey = getLocalDateString();
+    const completedClientMap = getCalendarClientMapFromLog();
+    const scheduledClientMap = getCalendarClientMapFromSchedule();
+
+    const scheduleDateInput = document.getElementById("calendar-schedule-date");
+    if (scheduleDateInput && !scheduleDateInput.value) {
+        scheduleDateInput.value = todayKey;
+    }
+
+    monthLabel.textContent = monthStart.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric"
+    });
+
+    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weekdayHtml = weekdays.map(day => `<div class="calendar-weekday">${day}</div>`).join("");
+
+    let dayCellsHtml = "";
+    for (let i = 0; i < 42; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+
+        const dateKey = getLocalDateString(date);
+        const isCurrentMonth = date.getMonth() === month;
+        const isToday = dateKey === todayKey;
+        const completedNames = completedClientMap.get(dateKey) || [];
+        // Only show scheduled chips for today or future dates
+        const allScheduledNames = scheduledClientMap.get(dateKey) || [];
+        const scheduledNames = dateKey >= todayKey ? allScheduledNames : [];
+        const scheduledPreview = scheduledNames.slice(0, 2);
+        const completedPreview = completedNames.slice(0, 2);
+        const totalDisplayed = scheduledPreview.length + completedPreview.length;
+        const overflowCount = Math.max((scheduledNames.length + completedNames.length) - totalDisplayed, 0);
+
+        dayCellsHtml += `
+            <div class="calendar-day ${isCurrentMonth ? "" : "muted"} ${isToday ? "today" : ""}" data-date="${dateKey}">
+                <div class="calendar-day-number">${date.getDate()}</div>
+                ${scheduledPreview.map(name => `<span class="calendar-name-chip scheduled" title="Scheduled: ${name}">${name}</span>`).join("")}
+                ${completedPreview.map(name => `<span class="calendar-name-chip done" title="Completed: ${name}">${name}</span>`).join("")}
+                ${overflowCount ? `<div class="calendar-name-more">+${overflowCount} more</div>` : ""}
             </div>
         `;
+    }
+
+    grid.innerHTML = `
+        <div class="calendar-weekdays">${weekdayHtml}</div>
+        <div class="calendar-days">${dayCellsHtml}</div>
+    `;
+
+    grid.querySelectorAll(".calendar-day").forEach(cell => {
+        cell.addEventListener("click", () => {
+            const selectedDate = cell.dataset.date || "";
+            const dateInput = document.getElementById("calendar-schedule-date");
+            if (dateInput) dateInput.value = selectedDate;
+            renderCalendarDaySummary(selectedDate, completedClientMap, scheduledClientMap);
+        });
+    });
+
+    const selectedDate = (scheduleDateInput && scheduleDateInput.value) || todayKey;
+    renderCalendarDaySummary(selectedDate, completedClientMap, scheduledClientMap);
+}
+
+async function deleteCalendarSchedule(item) {
+    if (!item || !item.clientId) {
+        alert("Cannot delete: missing client info.");
+        return;
+    }
+    if (!confirm(`Remove "${item.clientName}" from schedule on ${item.serviceDate}?`)) return;
+
+    try {
+        await postToWebApp({
+            action: "deleteSchedule",
+            clientId: item.clientId
+        });
+        await fetchSheetData();
+        renderWorkHistoryCalendar(calendarCursorDate);
+        renderCalendarDaySummary(item.serviceDate);
     } catch (error) {
-        console.error("Calendar Error:", error);
-        daySummary.innerHTML = '<p style="color:red; padding:20px;">Unable to load history.</p>';
+        console.error("Delete Schedule Error:", error);
+        alert("Unable to delete this schedule right now.");
+    }
+}
+
+function editCalendarSchedule(item) {
+    if (!item || !item.clientId) return;
+
+    // Pre-fill the top schedule form with this item's values
+    const clientSelect = document.getElementById("calendar-schedule-client");
+    const dateInput = document.getElementById("calendar-schedule-date");
+    const serviceSelect = document.getElementById("calendar-schedule-service");
+    const notesInput = document.getElementById("calendar-schedule-notes");
+
+    if (clientSelect) {
+        for (let i = 0; i < clientSelect.options.length; i++) {
+            if (clientSelect.options[i].value === item.clientId) {
+                clientSelect.selectedIndex = i;
+                break;
+            }
+        }
+    }
+    if (dateInput) dateInput.value = item.serviceDate;
+    if (serviceSelect) {
+        for (let i = 0; i < serviceSelect.options.length; i++) {
+            if (serviceSelect.options[i].value === item.serviceType) {
+                serviceSelect.selectedIndex = i;
+                break;
+            }
+        }
+    }
+    if (notesInput) notesInput.value = item.notes || "";
+
+    // Scroll to the schedule form
+    const schedForm = document.getElementById("calendar-schedule-submit");
+    if (schedForm) schedForm.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+async function submitCalendarSchedule() {
+    const clientSelect = document.getElementById("calendar-schedule-client");
+    const dateInput = document.getElementById("calendar-schedule-date");
+    const serviceSelect = document.getElementById("calendar-schedule-service");
+    const notesInput = document.getElementById("calendar-schedule-notes");
+
+    if (!clientSelect || !dateInput || !serviceSelect) return;
+
+    const clientId = clientSelect.value || "";
+    const selectedOption = clientSelect.options[clientSelect.selectedIndex];
+    const clientName = selectedOption?.dataset?.clientName || selectedOption?.text || "";
+    const scheduleDate = formatDateValue(dateInput.value || "");
+    const serviceType = serviceSelect.value || "Lawn Care";
+    const notes = notesInput?.value?.trim() || "";
+
+    if (!clientId || !clientName) {
+        alert("Please select a client.");
+        return;
+    }
+
+    if (!scheduleDate) {
+        alert("Please choose a schedule date.");
+        return;
+    }
+
+    const today = getLocalDateString();
+    if (scheduleDate < today) {
+        alert("Schedule date must be today or a future date.");
+        return;
+    }
+
+    try {
+        await postToWebApp({
+            action: "scheduleService",
+            clientId,
+            clientName,
+            serviceDate: scheduleDate,
+            serviceType,
+            notes
+        });
+
+        if (notesInput) notesInput.value = "";
+        await fetchSheetData();
+        renderWorkHistoryCalendar(calendarCursorDate);
+        renderCalendarDaySummary(scheduleDate);
+    } catch (error) {
+        console.error("Calendar Schedule Error:", error);
+        alert("Unable to save this schedule right now.");
     }
 }
 
@@ -1239,11 +1552,7 @@ function showCalendarView() {
     if (dashboard) dashboard.style.display = "none";
     if (calendarView) calendarView.style.display = "block";
 
-    const picker = document.getElementById("calendar-picker");
-    if (picker && !picker.value) {
-        picker.value = getLocalDateString();
-    }
-    if (picker) fetchLogData(picker.value);
+    renderWorkHistoryCalendar(calendarCursorDate);
 }
 
 async function submitLogin(event) {
@@ -1295,7 +1604,7 @@ Object.assign(window, {
     submitPaymentUpdate,
     openClientEditorModal,
     openScheduleLookupModal,
-    fetchLogData
+    fetchLogData: renderCalendarDaySummary
 });
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1311,9 +1620,40 @@ document.addEventListener("DOMContentLoaded", () => {
     const clientSelect = document.getElementById("nc-client-select");
     if (clientSelect) clientSelect.addEventListener("change", handleClientSelectionChange);
 
-    const calendarPicker = document.getElementById("calendar-picker");
-    if (calendarPicker) {
-        calendarPicker.addEventListener("change", event => fetchLogData(event.target.value));
+    const calendarPrevBtn = document.getElementById("calendar-prev-btn");
+    if (calendarPrevBtn) {
+        calendarPrevBtn.addEventListener("click", () => {
+            const previousMonth = new Date(calendarCursorDate.getFullYear(), calendarCursorDate.getMonth() - 1, 1);
+            renderWorkHistoryCalendar(previousMonth);
+        });
+    }
+
+    const calendarNextBtn = document.getElementById("calendar-next-btn");
+    if (calendarNextBtn) {
+        calendarNextBtn.addEventListener("click", () => {
+            const nextMonth = new Date(calendarCursorDate.getFullYear(), calendarCursorDate.getMonth() + 1, 1);
+            renderWorkHistoryCalendar(nextMonth);
+        });
+    }
+
+    const calendarTodayBtn = document.getElementById("calendar-today-btn");
+    if (calendarTodayBtn) {
+        calendarTodayBtn.addEventListener("click", () => {
+            renderWorkHistoryCalendar(new Date());
+        });
+    }
+
+    const calendarScheduleSubmit = document.getElementById("calendar-schedule-submit");
+    if (calendarScheduleSubmit) {
+        calendarScheduleSubmit.addEventListener("click", submitCalendarSchedule);
+    }
+
+    const calendarScheduleDate = document.getElementById("calendar-schedule-date");
+    if (calendarScheduleDate) {
+        calendarScheduleDate.value = getLocalDateString();
+        calendarScheduleDate.addEventListener("change", event => {
+            renderCalendarDaySummary(event.target.value);
+        });
     }
 
     const scheduleLookupDate = document.getElementById("schedule-lookup-date");
