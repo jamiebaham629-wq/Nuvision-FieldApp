@@ -1383,7 +1383,6 @@ function openCheckOffModal(clientId, clientName, price, selectedDate = getLocalD
     const normalizedDate = formatDateValue(selectedDate) || getLocalDateString();
     const latestRow = getLatestLawnLogRow(clientName);
     const latestStart = latestRow ? getLogStartTimeValue(latestRow) : "";
-    const cutDate = latestRow ? getLogLastCutDate(latestRow) : "";
     const duration = latestRow ? getLogDurationValue(latestRow) : "";
 
     modal.dataset.clientId = clientId;
@@ -1392,7 +1391,7 @@ function openCheckOffModal(clientId, clientName, price, selectedDate = getLocalD
     document.getElementById("co-base-price").value = numericPrice.toFixed(2);
     document.getElementById("co-extra-tip").value = "0.00";
     document.getElementById("co-total").value = numericPrice.toFixed(2);
-    document.getElementById("co-date-display").value = cutDate || normalizedDate;
+    document.getElementById("co-date-display").value = normalizedDate;
     document.getElementById("co-method").value = "Pay later";
     document.getElementById("co-start-ts").value = latestStart ? String(latestStart) : "";
     document.getElementById("co-duration").value = duration ? String(duration) : "";
