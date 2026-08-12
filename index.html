@@ -303,6 +303,14 @@
                         <input type="number" id="nc-price" placeholder="Price per Cut ($)" style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; box-sizing: border-box;">
                     </div>
 
+                    <div style="margin-bottom:20px; padding:10px 12px; border:1px solid #e6eef8; border-radius:8px; background:#f8fbff;">
+                        <label for="nc-active" style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#333; cursor:pointer;">
+                            <input type="checkbox" id="nc-active" checked>
+                            Active Customer
+                        </label>
+                        <div style="font-size:11px; color:#666; margin-top:6px;">Only active customers appear in Lawn Tracker and Finance.</div>
+                    </div>
+
                     <div style="display:flex; gap:10px;">
                         <button id="nc-submit-btn" type="submit" style="flex:2; padding:12px; background:#28a745; color:white; border:none; border-radius:6px; font-weight:bold;">Save Client</button>
                         <button type="button" onclick="closeClientModal()" style="flex:1; padding:12px; background:#666; color:white; border:none; border-radius:6px;">Cancel</button>

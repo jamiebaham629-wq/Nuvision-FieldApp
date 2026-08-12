@@ -173,10 +173,17 @@
 
         let financeRecords = [];
         let allClients = [];
+        let activeClientNames = new Set();
         let currentFilter = 'all';
         let selectedFinanceRecord = null;
         let isDepositPanelOpen = false;
         let isPreviousWeekPanelOpen = false;
+
+        function isClientActive(value) {
+            const normalized = String(value ?? '').trim().toLowerCase();
+            if (!normalized) return true;
+            return ['true', 'yes', 'y', '1', 'active'].includes(normalized);
+        }
 
         function getAuthKey() {
             return localStorage.getItem(AUTH_STORAGE_KEY) || '';
@@ -367,6 +374,8 @@
 
         function getFilteredOpenRecords() {
             return financeRecords.filter(record => {
+                const nameKey = String(record.clientName || '').trim().toLowerCase();
+                if (!activeClientNames.has(nameKey)) return false;
                 const matchesFilter = currentFilter === 'all' || String(record.category || '').trim().toLowerCase() === currentFilter;
                 return matchesFilter && record.balanceDue > 0;
             });
@@ -376,6 +385,8 @@
             const today = parseLocalDate(new Date());
 
             return financeRecords.filter(record => {
+                const nameKey = String(record.clientName || '').trim().toLowerCase();
+                if (!activeClientNames.has(nameKey)) return false;
                 if (!record.lastPaymentDate || record.amountPaid <= 0) return false;
 
                 const paidDate = parseLocalDate(record.lastPaymentDate);
@@ -401,6 +412,8 @@
             if (!start || !end) return [];
 
             return financeRecords.filter(record => {
+                const nameKey = String(record.clientName || '').trim().toLowerCase();
+                if (!activeClientNames.has(nameKey)) return false;
                 if (record.amountPaid <= 0) return false;
                 if (String(record.category || '').trim().toLowerCase() !== 'lawn care') return false;
 
@@ -681,7 +694,10 @@
             }
 
             section.style.display = 'block';
-            const matches = financeRecords.filter(record => String(record.clientName || '').trim().toLowerCase() === selectedClient);
+            const matches = financeRecords.filter(record => {
+                const nameKey = String(record.clientName || '').trim().toLowerCase();
+                return nameKey === selectedClient && activeClientNames.has(nameKey);
+            });
 
             if (!matches.length) {
                 container.innerHTML = '<p style="margin:0; color:#666;">No finance history found for that client.</p>';
@@ -741,9 +757,14 @@
                 const financeRows = data.finance ? data.finance.slice(1) : [];
                 const clientRows = data.clients ? data.clients.slice(1) : [];
                 financeRecords = financeRows.map(normalizeRecord).filter(record => record.clientName || record.reference);
-                allClients = clientRows
+                const activeNames = clientRows
+                    .filter(row => row && row[1])
+                    .filter(row => isClientActive(row[5]))
                     .map(row => String(row[1] || '').trim())
                     .filter(name => name);
+
+                activeClientNames = new Set(activeNames.map(name => String(name).toLowerCase()));
+                allClients = activeNames;
 
                 populateClientDropdown();
                 renderSummary();

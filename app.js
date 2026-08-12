@@ -307,6 +307,12 @@ function escapeName(value) {
     return String(value || "").replace(/'/g, "\\'");
 }
 
+function isClientActive(value) {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (!normalized) return true;
+    return ["true", "yes", "y", "1", "active"].includes(normalized);
+}
+
 function getMasterClientByKey(key) {
     return masterClients.find(client => String(client.id || client.name) === String(key || "")) || null;
 }
@@ -323,7 +329,8 @@ function populateClientEditorOptions() {
         .slice()
         .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
         .forEach(client => {
-            select.appendChild(new Option(client.name, String(client.id || client.name)));
+            const label = client.active === false ? `${client.name} (Inactive)` : client.name;
+            select.appendChild(new Option(label, String(client.id || client.name)));
         });
 
     select.appendChild(new Option("+ Add New Client", "__new__"));
@@ -338,6 +345,7 @@ function getCalendarClientOptions() {
     const uniqueByName = new Map();
 
     source.forEach(client => {
+        if (client?.active === false) return;
         const name = String(client?.name || "").trim();
         if (!name) return;
         const key = name.toLowerCase();
@@ -383,6 +391,7 @@ function handleClientSelectionChange() {
     const freqInput = document.getElementById("nc-freq");
     const lastCutInput = document.getElementById("nc-lastcut");
     const priceInput = document.getElementById("nc-price");
+    const activeInput = document.getElementById("nc-active");
 
     if (!select || !idInput || !nameWrap || !nameInput || !selectedClient || !submitButton) return;
 
@@ -402,6 +411,7 @@ function handleClientSelectionChange() {
             lastCutInput.dataset.originalValue = "";
         }
         if (priceInput) priceInput.value = "";
+        if (activeInput) activeInput.checked = true;
         return;
     }
 
@@ -423,6 +433,7 @@ function handleClientSelectionChange() {
             lastCutInput.dataset.originalValue = "";
         }
         if (priceInput) priceInput.value = "";
+        if (activeInput) activeInput.checked = true;
         return;
     }
 
@@ -441,6 +452,7 @@ function handleClientSelectionChange() {
         lastCutInput.dataset.originalValue = originalLastCut;
     }
     if (priceInput) priceInput.value = client.price || "";
+    if (activeInput) activeInput.checked = client.active !== false;
 }
 
 function openClientEditorModal() {
@@ -497,7 +509,8 @@ async function fetchSheetData() {
                 .map(row => [String(row[0]), {
                     address: row[2] || "",
                     phone: row[3] || "",
-                    email: row[4] || ""
+                    email: row[4] || "",
+                    active: isClientActive(row[5])
                 }])
         );
 
@@ -507,7 +520,8 @@ async function fetchSheetData() {
                 .map(row => [String(row[1]).trim().toLowerCase(), {
                     address: row[2] || "",
                     phone: row[3] || "",
-                    email: row[4] || ""
+                    email: row[4] || "",
+                    active: isClientActive(row[5])
                 }])
         );
 
@@ -518,7 +532,8 @@ async function fetchSheetData() {
                     id: row[0] || "",
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
-                    price: row[4] || ""
+                    price: row[4] || "",
+                    active: isClientActive(row[10])
                 }])
         );
 
@@ -529,7 +544,8 @@ async function fetchSheetData() {
                     id: row[0] || "",
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
-                    price: row[4] || ""
+                    price: row[4] || "",
+                    active: isClientActive(row[10])
                 }])
         );
 
@@ -548,7 +564,8 @@ async function fetchSheetData() {
                     email: row[4] || "",
                     frequency: lawnInfo.frequency || 7,
                     lastCut: lawnInfo.lastCut || "",
-                    price: lawnInfo.price || ""
+                    price: lawnInfo.price || "",
+                    active: isClientActive(row[5])
                 };
             });
 
@@ -569,7 +586,8 @@ async function fetchSheetData() {
                     email: contactInfo.email || "",
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
-                    price: row[4] || ""
+                    price: row[4] || "",
+                    active: typeof contactInfo.active === "boolean" ? contactInfo.active : isClientActive(row[10])
                 });
             });
 
@@ -599,7 +617,8 @@ async function fetchSheetData() {
                     nextServiceDate: isLawnCareRow ? (formatDateValue(row[8]) || "") : "",
                     avgJobCount: isLawnCareRow ? (parseInt(row[9], 10) || 0) : 0,
                     phone: contactInfo.phone || "",
-                    email: contactInfo.email || ""
+                    email: contactInfo.email || "",
+                    active: typeof contactInfo.active === "boolean" ? contactInfo.active : isClientActive(isLawnCareRow ? row[10] : "")
                 };
             });
 
@@ -636,8 +655,10 @@ function renderClients() {
     const listContainer = document.getElementById("lawn-list");
     if (!listContainer) return;
 
+    const visibleClients = clients.filter(client => client.active !== false);
+
     const activeCutRowsByClient = new Map();
-    clients.forEach(client => {
+    visibleClients.forEach(client => {
         const key = String(client?.name || "").trim().toLowerCase();
         if (!key) return;
 
@@ -645,12 +666,12 @@ function renderClients() {
         if (activeRow) activeCutRowsByClient.set(key, activeRow);
     });
 
-    const inProgress = clients.filter(client => {
+    const inProgress = visibleClients.filter(client => {
         const key = String(client?.name || "").trim().toLowerCase();
         return activeCutRowsByClient.has(key);
     });
 
-    const remainingClients = clients.filter(client => {
+    const remainingClients = visibleClients.filter(client => {
         const key = String(client?.name || "").trim().toLowerCase();
         return !activeCutRowsByClient.has(key);
     });
@@ -1533,7 +1554,8 @@ async function submitNewClient(event) {
         clientLastCut: normalizedLastCut,
         clientPrice: document.getElementById("nc-price").value || "0",
         clientPhone: document.getElementById("nc-phone").value.trim(),
-        clientEmail: document.getElementById("nc-email").value.trim()
+        clientEmail: document.getElementById("nc-email").value.trim(),
+        clientActive: document.getElementById("nc-active")?.checked ? "Active" : "Inactive"
     };
 
     if (!isNewClient && existingClient && normalizedLastCut !== originalLastCut) {
