@@ -137,6 +137,31 @@ function normalizeHeaderName(value) {
     return String(value || "").trim().toLowerCase();
 }
 
+function getHeaderIndex(headers = [], aliases = []) {
+    const normalizedAliases = aliases.map(normalizeHeaderName).filter(Boolean);
+    if (!normalizedAliases.length || !Array.isArray(headers) || !headers.length) return -1;
+
+    for (let i = 0; i < headers.length; i++) {
+        if (normalizedAliases.includes(normalizeHeaderName(headers[i]))) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+function getBooleanRowValue(row, preferredIndex, fallbackIndices = []) {
+    const indices = [preferredIndex, ...fallbackIndices].filter(index => Number.isInteger(index) && index >= 0);
+
+    for (const index of indices) {
+        if (index < row.length && row[index] !== undefined && row[index] !== null && String(row[index]).trim() !== "") {
+            return isClientActive(row[index]);
+        }
+    }
+
+    return true;
+}
+
 function getLogColumnIndex(...aliases) {
     const normalizedAliases = aliases.map(normalizeHeaderName).filter(Boolean);
     if (!normalizedAliases.length || !logHeaders.length) return -1;
@@ -496,8 +521,14 @@ async function fetchSheetData() {
             throw new Error(data.message || "Unauthorized");
         }
 
-        const clientRows = data.clients ? data.clients.slice(1) : [];
-        const lawnRows = data.lawnCare ? data.lawnCare.slice(1) : [];
+        const clientTable = Array.isArray(data.clients) ? data.clients : [];
+        const lawnTable = Array.isArray(data.lawnCare) ? data.lawnCare : [];
+        const clientHeaders = clientTable.length ? clientTable[0] : [];
+        const lawnHeaders = lawnTable.length ? lawnTable[0] : [];
+        const clientRows = clientTable.slice(1);
+        const lawnRows = lawnTable.slice(1);
+        const clientActiveIndex = getHeaderIndex(clientHeaders, ["Active", "Status", "Customer Status", "Active Customer"]);
+        const lawnActiveIndex = getHeaderIndex(lawnHeaders, ["Active", "Status", "Customer Status", "Active Customer"]);
 
         if (!data || (!clientRows.length && !lawnRows.length)) {
             throw new Error("No client data received from Google Sheets");
@@ -510,7 +541,7 @@ async function fetchSheetData() {
                     address: row[2] || "",
                     phone: row[3] || "",
                     email: row[4] || "",
-                    active: isClientActive(row[5])
+                    active: getBooleanRowValue(row, clientActiveIndex, [5])
                 }])
         );
 
@@ -521,7 +552,7 @@ async function fetchSheetData() {
                     address: row[2] || "",
                     phone: row[3] || "",
                     email: row[4] || "",
-                    active: isClientActive(row[5])
+                    active: getBooleanRowValue(row, clientActiveIndex, [5])
                 }])
         );
 
@@ -533,7 +564,7 @@ async function fetchSheetData() {
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
                     price: row[4] || "",
-                    active: isClientActive(row[10])
+                    active: getBooleanRowValue(row, lawnActiveIndex, [10, 5])
                 }])
         );
 
@@ -545,7 +576,7 @@ async function fetchSheetData() {
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
                     price: row[4] || "",
-                    active: isClientActive(row[10])
+                    active: getBooleanRowValue(row, lawnActiveIndex, [10, 5])
                 }])
         );
 
@@ -565,7 +596,7 @@ async function fetchSheetData() {
                     frequency: lawnInfo.frequency || 7,
                     lastCut: lawnInfo.lastCut || "",
                     price: lawnInfo.price || "",
-                    active: isClientActive(row[5])
+                    active: getBooleanRowValue(row, clientActiveIndex, [5]) && (typeof lawnInfo.active === "boolean" ? lawnInfo.active : true)
                 };
             });
 
@@ -587,7 +618,7 @@ async function fetchSheetData() {
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
                     price: row[4] || "",
-                    active: typeof contactInfo.active === "boolean" ? contactInfo.active : isClientActive(row[10])
+                    active: (typeof contactInfo.active === "boolean" ? contactInfo.active : true) && getBooleanRowValue(row, lawnActiveIndex, [10, 5])
                 });
             });
 
@@ -618,7 +649,7 @@ async function fetchSheetData() {
                     avgJobCount: isLawnCareRow ? (parseInt(row[9], 10) || 0) : 0,
                     phone: contactInfo.phone || "",
                     email: contactInfo.email || "",
-                    active: typeof contactInfo.active === "boolean" ? contactInfo.active : isClientActive(isLawnCareRow ? row[10] : "")
+                    active: (typeof contactInfo.active === "boolean" ? contactInfo.active : true) && getBooleanRowValue(row, isLawnCareRow ? lawnActiveIndex : clientActiveIndex, isLawnCareRow ? [10, 5] : [5])
                 };
             });
 

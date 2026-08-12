@@ -185,6 +185,31 @@
             return ['true', 'yes', 'y', '1', 'active'].includes(normalized);
         }
 
+        function getHeaderIndex(headers = [], aliases = []) {
+            const normalizedAliases = aliases.map(value => String(value || '').trim().toLowerCase()).filter(Boolean);
+            if (!normalizedAliases.length || !Array.isArray(headers) || !headers.length) return -1;
+
+            for (let i = 0; i < headers.length; i++) {
+                if (normalizedAliases.includes(String(headers[i] || '').trim().toLowerCase())) {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        function getBooleanRowValue(row, preferredIndex, fallbackIndices = []) {
+            const indices = [preferredIndex, ...fallbackIndices].filter(index => Number.isInteger(index) && index >= 0);
+
+            for (const index of indices) {
+                if (index < row.length && row[index] !== undefined && row[index] !== null && String(row[index]).trim() !== '') {
+                    return isClientActive(row[index]);
+                }
+            }
+
+            return true;
+        }
+
         function getAuthKey() {
             return localStorage.getItem(AUTH_STORAGE_KEY) || '';
         }
@@ -755,11 +780,14 @@
 
                 const data = JSON.parse(text);
                 const financeRows = data.finance ? data.finance.slice(1) : [];
-                const clientRows = data.clients ? data.clients.slice(1) : [];
+                const clientTable = Array.isArray(data.clients) ? data.clients : [];
+                const clientHeaders = clientTable.length ? clientTable[0] : [];
+                const clientRows = clientTable.slice(1);
+                const clientActiveIndex = getHeaderIndex(clientHeaders, ['Active', 'Status', 'Customer Status', 'Active Customer']);
                 financeRecords = financeRows.map(normalizeRecord).filter(record => record.clientName || record.reference);
                 const activeNames = clientRows
                     .filter(row => row && row[1])
-                    .filter(row => isClientActive(row[5]))
+                    .filter(row => getBooleanRowValue(row, clientActiveIndex, [5]))
                     .map(row => String(row[1] || '').trim())
                     .filter(name => name);
 
