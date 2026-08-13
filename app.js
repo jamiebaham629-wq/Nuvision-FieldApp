@@ -10,6 +10,7 @@ let scheduleData = [];
 let pendingClientUpdate = null;
 let pendingCutTimerAction = null;
 let calendarCursorDate = parseLocalDate(new Date()) || new Date();
+let clientVisibilityDebugRows = [];
 
 function getAuthKey() {
     return localStorage.getItem(AUTH_STORAGE_KEY) || "";
@@ -160,6 +161,18 @@ function getBooleanRowValue(row, preferredIndex, fallbackIndices = []) {
     }
 
     return true;
+}
+
+function getRawRowValue(row, preferredIndex, fallbackIndices = []) {
+    const indices = [preferredIndex, ...fallbackIndices].filter(index => Number.isInteger(index) && index >= 0);
+
+    for (const index of indices) {
+        if (index < row.length && row[index] !== undefined && row[index] !== null && String(row[index]).trim() !== "") {
+            return String(row[index]).trim();
+        }
+    }
+
+    return "";
 }
 
 function getLogColumnIndex(...aliases) {
@@ -335,7 +348,8 @@ function escapeName(value) {
 function isClientActive(value) {
     const normalized = String(value ?? "").trim().toLowerCase();
     if (!normalized) return true;
-    return ["true", "yes", "y", "1", "active"].includes(normalized);
+    if (["inactive", "false", "0", "no", "n", "off"].includes(normalized)) return false;
+    return true;
 }
 
 function getMasterClientByKey(key) {
@@ -436,7 +450,7 @@ function handleClientSelectionChange() {
             lastCutInput.dataset.originalValue = "";
         }
         if (priceInput) priceInput.value = "";
-        if (activeInput) activeInput.checked = true;
+        if (activeInput) activeInput.checked = false;
         return;
     }
 
@@ -458,7 +472,7 @@ function handleClientSelectionChange() {
             lastCutInput.dataset.originalValue = "";
         }
         if (priceInput) priceInput.value = "";
-        if (activeInput) activeInput.checked = true;
+        if (activeInput) activeInput.checked = false;
         return;
     }
 
@@ -477,7 +491,7 @@ function handleClientSelectionChange() {
         lastCutInput.dataset.originalValue = originalLastCut;
     }
     if (priceInput) priceInput.value = client.price || "";
-    if (activeInput) activeInput.checked = client.active !== false;
+    if (activeInput) activeInput.checked = client.active === false;
 }
 
 function openClientEditorModal() {
@@ -529,6 +543,37 @@ async function fetchSheetData() {
         const lawnRows = lawnTable.slice(1);
         const clientActiveIndex = getHeaderIndex(clientHeaders, ["Active", "Status", "Customer Status", "Active Customer"]);
         const lawnActiveIndex = getHeaderIndex(lawnHeaders, ["Active", "Status", "Customer Status", "Active Customer"]);
+        const clientStatusByName = new Map(
+            clientRows
+                .filter(row => row && row[1])
+                .map(row => {
+                    const nameKey = String(row[1] || "").trim().toLowerCase();
+                    const rawValue = getRawRowValue(row, clientActiveIndex, [5]);
+                    return [nameKey, {
+                        rawValue,
+                        isActive: getBooleanRowValue(row, clientActiveIndex, [5])
+                    }];
+                })
+        );
+        const lawnStatusByName = new Map(
+            lawnRows
+                .filter(row => row && row[1])
+                .map(row => {
+                    const nameKey = String(row[1] || "").trim().toLowerCase();
+                    const rawValue = getRawRowValue(row, lawnActiveIndex, [10]);
+                    return [nameKey, {
+                        rawValue,
+                        isActive: getBooleanRowValue(row, lawnActiveIndex, [10])
+                    }];
+                })
+        );
+        const inactiveClientNameKeys = new Set(
+            clientRows
+                .filter(row => row && row[1])
+                .filter(row => getBooleanRowValue(row, clientActiveIndex, [5]) === false)
+                .map(row => String(row[1] || "").trim().toLowerCase())
+                .filter(Boolean)
+        );
 
         if (!data || (!clientRows.length && !lawnRows.length)) {
             throw new Error("No client data received from Google Sheets");
@@ -564,7 +609,7 @@ async function fetchSheetData() {
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
                     price: row[4] || "",
-                    active: getBooleanRowValue(row, lawnActiveIndex, [10, 5])
+                    active: getBooleanRowValue(row, lawnActiveIndex)
                 }])
         );
 
@@ -576,7 +621,7 @@ async function fetchSheetData() {
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
                     price: row[4] || "",
-                    active: getBooleanRowValue(row, lawnActiveIndex, [10, 5])
+                    active: getBooleanRowValue(row, lawnActiveIndex)
                 }])
         );
 
@@ -585,6 +630,7 @@ async function fetchSheetData() {
             .map(row => {
                 const id = String(row[0] || "");
                 const name = row[1] || "Unnamed";
+                const nameKey = String(name || "").trim().toLowerCase();
                 const lawnInfo = lawnById.get(id) || lawnByName.get(String(name).trim().toLowerCase()) || {};
 
                 return {
@@ -596,7 +642,7 @@ async function fetchSheetData() {
                     frequency: lawnInfo.frequency || 7,
                     lastCut: lawnInfo.lastCut || "",
                     price: lawnInfo.price || "",
-                    active: getBooleanRowValue(row, clientActiveIndex, [5]) && (typeof lawnInfo.active === "boolean" ? lawnInfo.active : true)
+                    active: !inactiveClientNameKeys.has(nameKey) && getBooleanRowValue(row, clientActiveIndex, [5])
                 };
             });
 
@@ -605,10 +651,11 @@ async function fetchSheetData() {
             .forEach(row => {
                 const id = String(row[0] || "");
                 const name = row[1] || "Unnamed";
+                const nameKey = String(name || "").trim().toLowerCase();
                 const exists = masterClients.some(client => String(client.id || client.name) === String(id || name));
                 if (exists) return;
 
-                const contactInfo = contactById.get(id) || contactByName.get(String(name).trim().toLowerCase()) || {};
+                const contactInfo = contactByName.get(String(name).trim().toLowerCase()) || contactById.get(id) || {};
                 masterClients.push({
                     id,
                     name,
@@ -618,7 +665,7 @@ async function fetchSheetData() {
                     frequency: parseInt(row[2], 10) || 7,
                     lastCut: formatDateValue(row[3]) || "",
                     price: row[4] || "",
-                    active: (typeof contactInfo.active === "boolean" ? contactInfo.active : true) && getBooleanRowValue(row, lawnActiveIndex, [10, 5])
+                    active: !inactiveClientNameKeys.has(nameKey) && (typeof contactInfo.active === "boolean" ? contactInfo.active : getBooleanRowValue(row, lawnActiveIndex, [10]))
                 });
             });
 
@@ -632,8 +679,17 @@ async function fetchSheetData() {
             .map(row => {
                 const id = row[0] || "";
                 const name = row[1] || "Unnamed";
-                const contactInfo = contactById.get(String(id)) || contactByName.get(String(name).trim().toLowerCase()) || {};
+                const nameKey = String(name || "").trim().toLowerCase();
+                const contactInfo = contactByName.get(String(name).trim().toLowerCase()) || contactById.get(String(id)) || {};
                 const isLawnCareRow = lawnRows.length > 0;
+                const clientStatus = clientStatusByName.get(nameKey) || null;
+                const lawnStatus = lawnStatusByName.get(nameKey) || null;
+                const computedActive = !inactiveClientNameKeys.has(nameKey)
+                    && (clientStatus
+                        ? clientStatus.isActive
+                        : (typeof contactInfo.active === "boolean"
+                            ? contactInfo.active
+                            : getBooleanRowValue(row, isLawnCareRow ? lawnActiveIndex : clientActiveIndex, isLawnCareRow ? [10] : [5])));
 
                 return {
                     id,
@@ -649,9 +705,26 @@ async function fetchSheetData() {
                     avgJobCount: isLawnCareRow ? (parseInt(row[9], 10) || 0) : 0,
                     phone: contactInfo.phone || "",
                     email: contactInfo.email || "",
-                    active: (typeof contactInfo.active === "boolean" ? contactInfo.active : true) && getBooleanRowValue(row, isLawnCareRow ? lawnActiveIndex : clientActiveIndex, isLawnCareRow ? [10, 5] : [5])
+                    active: computedActive,
+                    _debug: {
+                        source: isLawnCareRow ? "Lawn Care" : "Clients",
+                        clientStatusRaw: clientStatus ? clientStatus.rawValue : "",
+                        clientStatusActive: clientStatus ? clientStatus.isActive : true,
+                        lawnStatusRaw: lawnStatus ? lawnStatus.rawValue : "",
+                        lawnStatusActive: lawnStatus ? lawnStatus.isActive : true,
+                        inInactiveSet: inactiveClientNameKeys.has(nameKey),
+                        contactInfoActive: typeof contactInfo.active === "boolean" ? contactInfo.active : null,
+                        computedActive
+                    }
                 };
             });
+
+        clientVisibilityDebugRows = clients.map(client => ({
+            name: client.name,
+            id: client.id,
+            active: client.active,
+            debug: client._debug || {}
+        }));
 
         logHeaders = Array.isArray(data.log) && data.log.length ? data.log[0] : [];
         logData = data.log ? data.log.slice(1) : [];
@@ -797,6 +870,27 @@ function renderClients() {
                 ${showYellow ? "Hide Upcoming" : "View Upcoming"}
             </button>
         </div>
+    `;
+
+    const hiddenDebugRows = clientVisibilityDebugRows.filter(row => row.active === false);
+    html += `
+        <details style="margin:10px; border:1px solid #dbe8f8; border-radius:10px; background:#f8fbff; padding:10px;">
+            <summary style="cursor:pointer; font-weight:700; color:#0A66C2;">Client Visibility Debug (${clientVisibilityDebugRows.length} total, ${hiddenDebugRows.length} hidden)</summary>
+            <div style="margin-top:8px; font-size:12px; color:#333;">Only explicit inactive clients should be hidden. Use this panel to verify status values.</div>
+            <div style="margin-top:8px; display:flex; flex-direction:column; gap:8px; max-height:260px; overflow:auto;">
+                ${clientVisibilityDebugRows.map(row => {
+                    const debug = row.debug || {};
+                    return `
+                        <div style="border:1px solid #e3ecf7; border-radius:8px; background:white; padding:8px;">
+                            <div style="font-weight:700; color:${row.active ? "#2e7d32" : "#b00020"};">${row.name} ${row.active ? "(VISIBLE)" : "(HIDDEN)"}</div>
+                            <div style="font-size:11px; color:#555; margin-top:4px;">Clients Status Raw: ${debug.clientStatusRaw || "[blank]"} | Lawn Status Raw: ${debug.lawnStatusRaw || "[blank]"}</div>
+                            <div style="font-size:11px; color:#555; margin-top:2px;">Clients Active Bool: ${debug.clientStatusActive} | Lawn Active Bool: ${debug.lawnStatusActive}</div>
+                            <div style="font-size:11px; color:#555; margin-top:2px;">In Inactive Set: ${debug.inInactiveSet} | contactInfoActive: ${debug.contactInfoActive} | Final Active: ${debug.computedActive}</div>
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+        </details>
     `;
 
     listContainer.innerHTML = html;
@@ -1586,7 +1680,7 @@ async function submitNewClient(event) {
         clientPrice: document.getElementById("nc-price").value || "0",
         clientPhone: document.getElementById("nc-phone").value.trim(),
         clientEmail: document.getElementById("nc-email").value.trim(),
-        clientActive: document.getElementById("nc-active")?.checked ? "Active" : "Inactive"
+        clientActive: document.getElementById("nc-active")?.checked ? "Inactive" : ""
     };
 
     if (!isNewClient && existingClient && normalizedLastCut !== originalLastCut) {
